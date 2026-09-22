@@ -1,0 +1,26 @@
+Preliminary Design
+
+The preliminary technology stack for this project will consist of React/TypeScript for the frontend, Python for the backend, and Neo4j as the primary graph database.
+
+Frontend:
+We expect to use React with TypeScript to develop the web-based user interface. React will allow us to create interactive components for uploading codebases, searching for symbols, viewing code relationships, and exploring the dependency graph. TypeScript will provide type safety and make the frontend code easier to maintain.
+
+Backend:
+We expect to use Python for the backend because Python provides a large number of libraries for source-code parsing, file processing, data analysis, and API development. We are considering FastAPI as the backend framework because it provides a straightforward way to create REST APIs that can communicate with the React frontend.
+
+Database:
+We plan to use Neo4j as the primary database because it is a graph database designed to represent relationships between connected entities. Nodes can represent files, directories, classes, functions, and methods, while relationships can represent imports, calls, references, containment, inheritance, and other dependencies.
+
+Code Parsing and Analysis:
+Python-based parsing libraries will be used to analyze source code and identify important code structures and relationships. The exact parsing libraries may depend on which programming languages are supported by the final version of the project.
+
+APIs:
+The frontend and backend will communicate through a REST API. The system may also use the GitHub and GitLab APIs to retrieve source code from remote repositories. Local folders and uploaded ZIP files will provide additional ways for users to supply source code.
+
+Deployment:
+Professor will let us know on deployment later on.
+
+Development Tools:
+Development will primarily use Visual Studio Code, Git, GitHub, and Neo4j tools. Git will be used for version control and collaboration between team members.
+
+Overall, the preliminary architecture will use React/TypeScript for the user interface, a Python-based REST API for backend processing, and Neo4j for storing and querying the code dependency graph. These technologies may be adjusted as development progresses and the team gains a better understanding of the project's technical requirements.
