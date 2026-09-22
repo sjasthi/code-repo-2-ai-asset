@@ -5,16 +5,15 @@ This plan breaks the project into 10 focused iterations, each with clear deliver
 
 ---
 
-## **FP1: Project Understanding** ✅ (COMPLETE)
+## **FP1: Project Understanding**
 - Project scope, goals, and vision defined
 - Users and stakeholders identified
 - Primary goals documented
 
 ---
 
-## **FP2: Research, Design & Planning** (NEXT)
+## **FP2: Research, Design & Planning**
 
-**Duration:** 1-2 weeks
 
 **Goals:**
 - Research competitive products and open-source solutions
@@ -48,7 +47,6 @@ This plan breaks the project into 10 focused iterations, each with clear deliver
 
 ## **FP3: Backend Foundation & Tree-Sitter Integration** 
 
-**Duration:** 1-2 weeks
 
 **Goals:**
 - Set up Python backend (FastAPI)
@@ -81,8 +79,6 @@ This plan breaks the project into 10 focused iterations, each with clear deliver
 
 ## **FP4: JavaScript/TypeScript Parser & Neo4j Schema**
 
-**Duration:** 1-2 weeks
-
 **Goals:**
 - Extend parser to support JavaScript/TypeScript
 - Design and implement Neo4j data model
@@ -112,8 +108,6 @@ This plan breaks the project into 10 focused iterations, each with clear deliver
 ---
 
 ## **FP5: Dependency Graph Construction**
-
-**Duration:** 2 weeks
 
 **Goals:**
 - Extract import/dependency relationships
@@ -147,7 +141,6 @@ This plan breaks the project into 10 focused iterations, each with clear deliver
 
 ## **FP6: Symbol Index & Search**
 
-**Duration:** 1-2 weeks
 
 **Goals:**
 - Build comprehensive symbol index (searchable)
@@ -179,7 +172,6 @@ This plan breaks the project into 10 focused iterations, each with clear deliver
 
 ## **FP7: Frontend Setup & Basic UI**
 
-**Duration:** 2 weeks
 
 **Goals:**
 - Create React/TypeScript frontend scaffold
@@ -215,7 +207,6 @@ This plan breaks the project into 10 focused iterations, each with clear deliver
 
 ## **FP8: Graph Visualization & Navigation**
 
-**Duration:** 2 weeks
 
 **Goals:**
 - Integrate graph visualization library (Cytoscape.js)
@@ -252,7 +243,6 @@ This plan breaks the project into 10 focused iterations, each with clear deliver
 
 ## **FP9: GitHub/GitLab Integration & End-to-End Testing**
 
-**Duration:** 2 weeks
 
 **Goals:**
 - Add GitHub/GitLab repository import
@@ -290,7 +280,6 @@ This plan breaks the project into 10 focused iterations, each with clear deliver
 
 ## **FP10: Polish, Optimization & User Validation**
 
-**Duration:** 2 weeks
 
 **Goals:**
 - Final performance optimization
