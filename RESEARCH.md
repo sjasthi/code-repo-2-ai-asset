@@ -1,37 +1,66 @@
-After researching all of the existing code dependency tools availiable, here is a summary of a few popular tools and what they do well.
+# Competitive Analysis
 
-Github's Dependency Graph:
-    Pros:
-        Built directly into Github, security focused, transitive dependency tracking, wide package ecosystem support, free for public repos, auto updates, vulnerabliity itelligence, and pull request integration.
+After researching all of the existing code dependency tools available, here is a summary of a few popular tools and what they do well.
 
-    Cons: 
-        Package-level only, cannot show code-level dependencies. Only works if project has package.json, requirments.txt, etc. No code symbol indexing, limited to external dependencies, GitHub only (no Gitlab, Git, etc.).
+## GitHub's Dependency Graph
 
+**Pros:**
+- Built directly into Github
+- Security focused
+- Transitive dependency tracking
+- Wide package ecosystem support
+- Free for public repos
+- Auto updates
+- Vulnerability intelligence
+- Pull request integration
 
-GitLab Dependency Scanning:
-    Pros:
-        CI/CD integrated, good security, comprehensive dependency analysis, immediate feedback, supports multiple ecosystems (Python, Java, Ruby, etc), can scan outside of CI/CD pipelines.
+**Cons:**
+- Package-level only, cannot show code-level dependencies
+- Only works if project has package.json, requirements.txt, etc.
+- No code symbol indexing
+- Limited to external dependencies
+- GitHub only (no GitLab, Git, etc.)
 
-    Cons: 
-        Enterprise-only feature (requires tier subscription), GitLab only (does not work with Github or other platforms), Requires gitlab-ci.yml file setup, only focuses on security, no code symbol indexing, and no interactive visualization.
+---
 
+## GitLab Dependency Scanning
 
+**Pros:**
+- CI/CD integrated
+- Good security
+- Comprehensive dependency analysis
+- Immediate feedback
+- Supports multiple ecosystems (Python, Java, Ruby, etc)
+- Can scan outside of CI/CD pipelines
 
-VScode Maps:
-    Pros:
-        Works locally in ediotr, file-level structure (can show classes, functions and methods), quick naviagation, interactive UI, supports multiple languages, no API calls required, free options avialable, and quick and easy to setup.
+**Cons:**
+- Enterprise-only feature (requires tier subscription)
+- GitLab only (does not work with Github or other platforms)
+- Requires gitlab-ci.yml file setup
+- Only focuses on security
+- No code symbol indexing
+- No interactive visualization
 
-    Cons: 
-        Single file view only, limited cross-file dependencies, no security scanning, no codebase-wide search, limited scalability, requires manual naviagation, IDE-dependent (meaning only works in VSCode), no presistent graph storage.
+---
 
+## VSCode Maps
 
+**Pros:**
+- Works locally in editor
+- File-level structure (can show classes, functions and methods)
+- Quick navigation
+- Interactive UI
+- Supports multiple languages
+- No API calls required
+- Free options available
+- Quick and easy to setup
 
-Possible ideas for our project:
-
-Since the GitHub Dependency Graph only shows package dependencies and not code relationships, we can provide file imports, function calls, and class hierarchies. 
-
-Most of these solutions only work on single-file or single-project and has no searcable index, so we can use Neo4j to enable fast gloybal symbol search accross the entire codebase. 
-
-There is no good solution for cross-file dependency navigation, but our graphs will be able to show these relationships as well as an impact analysis.
-
-Exisisting tools are built mainly for humans. LLMs will be able to query our Neo4j graphs which will help then understand the code structure better.
+**Cons:**
+- Single file view only
+- Limited cross-file dependencies
+- No security scanning
+- No codebase-wide search
+- Limited scalability
+- Requires manual navigation
+- IDE-dependent (only works in VSCode)
+- No persistent graph storage
