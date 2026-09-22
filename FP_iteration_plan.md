@@ -1,378 +1,382 @@
-Overview
-
-This plan breaks the project into 10 focused iterations, each with clear deliverables. Each iteration builds on the previous, with time allocated for learning, testing, optimization, and refinement (Note. iterations are not set in stone).
-
-FP1: Project Understanding
-Project scope, goals, and vision defined
-Users and stakeholders identified
-Primary goals documented
-FP2: Research, Design & Planning (NEXT)
-
-
-Goals:
-
-Quick competitive research (focused, not exhaustive)
-Validate technology stack choices
-Create basic architecture diagram
-Document key risks
-Set up dev environment
-
-Deliverables:
-
-RESEARCH.md — 1-page competitive analysis (3-5 key tools, what's missing)
-TECH_STACK.md — Tech choices and quick rationale
-ARCHITECTURE.md — Basic system diagram (ASCII or simple sketch)
-RISKS.md — Top 5 risks with quick mitigation
-Local dev environment working (Python + Neo4j running)
-GitHub repo initialized with README
-
-Key Tasks:
-
-Spend 2 hours researching 3-5 competing tools (what do they do well?)
-Quick tree-sitter test on 1 Python file (prove it works)
-Spin up Neo4j locally (verify it runs)
-Sketch basic architecture (can be simple)
-Set up FastAPI + React skeleton repos
-
-Success Criteria:
-
-Team agrees on tech stack
-Dev environment runs on all machines
-No blocking unknowns identified
-Ready to start coding FP3
-
-Notes:
-
-Skip exhaustive research; make quick decisions
-Focus on "does it work?" not "is it perfect?"
-Can course-correct in FP9
-FP3: Backend Foundation & Python Parser
-
-Duration: 1 week
-
-Goals:
-
-Set up FastAPI backend scaffold
-Integrate tree-sitter for Python
-Extract top-level symbols (classes, functions)
-
-Deliverables:
-
-FastAPI server with 1 basic endpoint
-tree-sitter Python parser working
-Symbol extractor (classes + functions only)
-Basic tests (5-10 test cases)
-
-Key Tasks:
-
-Set up FastAPI project (main.py, requirements.txt)
-Install tree-sitter and Python grammar
-Implement simple symbol extractor (walk AST, extract class/function names)
-Create /parse endpoint that accepts Python code (string)
-Write 5-10 unit tests
-Document endpoint in README
-
-Success Criteria:
-
-/parse endpoint works on sample Python files
-Extracts class and function names correctly
-Tests pass
-No external dependencies blocked
-
-Notes:
-
-Focus only on top-level symbols (skip nested for now)
-Methods extracted in FP5 (keep scope tight)
-Tests don't need to be perfect, just basic coverage
-FP4: Neo4j Schema & Database Integration
-
-Duration: 1 week
-
-Goals:
-
-Design and implement Neo4j data model
-Store parsed symbols in Neo4j
-Create basic queries
-
-Deliverables:
-
-Neo4j schema (File, Class, Function nodes)
-Neo4j driver integration in FastAPI
-/store endpoint that saves symbols to Neo4j
-3-5 basic queries (find class, find function, list all symbols)
-Connection pooling + error handling
-
-Key Tasks:
-
-Design minimal Neo4j schema (just the essentials)
-Set up Neo4j driver in FastAPI
-Implement store_symbol() function
-Create /store endpoint
-Build simple queries for retrieval
-Test Neo4j connection and basic CRUD
-
-Success Criteria:
-
-Can insert symbols into Neo4j
-Can retrieve symbols by name
-Basic queries work correctly
-No connection pooling issues
-Tests passing
-
-Notes:
-
-Keep schema minimal (add relationship types in FP5-6)
-Don't optimize queries yet (do that in FP5)
-Test with small dataset (10-20 symbols)
-FP5: Import Extraction & File Dependencies
-
-Duration: 1 week
-
-Goals:
-
-Extract import statements from Python files
-Build file-to-file relationships in Neo4j
-Create /analyze endpoint that processes a folder
-
-Deliverables:
-
-Import extractor (parse Python import/from statements)
-File node creation (one node per .py file)
-IMPORTS relationship builder
-/analyze endpoint (takes folder, parses all .py files)
-Basic import dependency queries
-
-Key Tasks:
-
-Implement import statement parser (regex + AST)
-Create File nodes for each Python file
-Extract and store IMPORTS relationships
-Implement /analyze endpoint
-Write tests for import extraction
-Test on sample Python project (100-200 files)
-
-Success Criteria:
-
-Correctly identifies all top-level imports
-File nodes created in Neo4j
-IMPORTS relationships accurate
-/analyze endpoint works on sample project
-Tests passing
-
-Notes:
-
-Python imports only (JS/TS in v2)
-Skip edge cases for now (circular, dynamic) - handle in FP9
-Don't optimize performance yet (FP9)
-FP6: Symbol Search
-
-Duration: 1 week
-
-Goals:
-
-Implement basic symbol search
-Create search API endpoint
-
-Deliverables:
-
-/search endpoint (search by symbol name)
-Neo4j indexes for fast lookup
-Search returns classes and functions
-Tests for search functionality
-
-Key Tasks:
-
-Create Neo4j indexes on symbol names
-Implement search endpoint (exact match)
-Return results: symbol name, file, line number
-Add basic error handling
-Write tests (10 test cases)
-Document /search endpoint
-
-Success Criteria:
-
-Search endpoint works
-Returns correct results
-Tests passing
-No performance optimization needed yet
-
-Notes:
-
-Exact match only (fuzzy in v2)
-No pagination yet (simple list)
-No ranking (all results same priority)
-FP7: Frontend Setup & Upload UI
-
-Duration: 1 week
-
-Goals:
-
-Create React/TypeScript project
-Build file upload component
-Wire up to backend /analyze endpoint
-
-Deliverables:
-
-React app with TypeScript
-Upload folder component
-API client (basic fetch wrapper)
-Loading/error states
-Basic layout
-
-Key Tasks:
-
-Set up Vite project
-Create upload component (file input)
-Build API client service
-Create /analyze endpoint call
-Add loading/error messages
-Test component manually
-
-Success Criteria:
-
-Can upload a folder
-Backend receives files
-Loading state shows
-Error handling works
-No TypeScript errors
-
-Notes:
-
-No graph visualization yet (FP8)
-No search UI yet (FP8)
-Simple layout only
-Manual testing is fine
-FP8: Graph Visualization
-
-Duration: 1 week
-
-Goals:
-
-Render dependency graph with Cytoscape.js
-Add basic interactions (zoom, pan)
-Connect to backend graph API
-
-Deliverables:
-
-Cytoscape.js integration
-/graph endpoint that returns JSON graph data
-Render nodes (files, classes)
-Render edges (imports)
-Zoom/pan controls
-Basic styling
-
-Key Tasks:
-
-Integrate Cytoscape.js library
-Create /graph endpoint (returns graph as JSON)
-Fetch graph from backend
-Render nodes and edges
-Add zoom/pan
-Add basic node colors
-Test with sample graph (50-100 nodes)
-
-Success Criteria:
-
-Graph renders
-Zoom/pan works
-Nodes are clickable
-No major performance issues on small graphs
-Manual testing passes
-
-Notes:
-
-Don't worry about large graphs yet (FP9)
-No filtering/searching on graph (FP9)
-Simple styling only
-Performance optimization in FP9
-FP9: GitHub Integration & Performance Optimization
-
-Duration: 1 week
-
-Goals:
-
-Add GitHub repo import
-Optimize performance for larger codebases
-Test on real open-source projects
-Fix bugs found during testing
-
-Deliverables:
-
-GitHub API integration (token-based)
-cloneRepo() function
-Real-world testing (3-5 open-source repos)
-Performance improvements (optimize queries/parsing)
-Bug fixes from testing
-Known issues documented
-
-Key Tasks:
-
-Implement GitHub API client (token auth)
-Clone repo and process all .py files
-Build repo picker UI
-Test on Flask, Django, Requests (50K-100K lines each)
-Profile and optimize slow queries
-Fix parsing edge cases
-Benchmark end-to-end time
-Document known limitations
-
-Success Criteria:
-
-GitHub import works
-Can analyze real repo in <2 minutes
-Graph renders with 1K+ nodes without lag
-At least 3 open-source projects analyzed successfully
-Major bugs fixed
-
-Notes:
-
-GitLab in v2 (keep scope tight)
-Focus on MVP target (50K lines in 2 min)
-Skip edge cases, document them instead
-FP10: Documentation, Deployment & Feedback
-
-Duration: 1 week
-
-Goals:
-
-Complete documentation
-Create deployment guide
-Gather user feedback
-Plan v2 roadmap
-
-Deliverables:
-
-Complete README (with demo)
-API documentation
-Deployment guide (Docker + quick start)
-User guide / tutorial
-v2 roadmap document
-Known issues/limitations list
-
-Key Tasks:
-
-Write comprehensive README
-Document all API endpoints
-Create Docker setup
-Write quick start guide
-Get feedback from 3-5 developers
-Create v2 feature list
-Document tech debt
-Clean up code (basic refactoring)
-Remove debug code/comments
-
-Success Criteria:
-
-README is clear and complete
-Can deploy with docker-compose up
-User feedback collected
-v2 roadmap defined
-Known issues documented
-Code is clean and ready for handoff
-
-Notes:
-
-Focus on clarity over perfection
-User feedback from team/classmates is fine
-v2 roadmap for future development
-No code refactoring beyond cleanup
+# Codebase Analyzer: 10-Iteration Development Plan
+
+## Overview
+This plan breaks the project into 10 focused iterations, each with clear deliverables. Each iteration builds on the previous, with time allocated for learning, testing, optimization, and refinement.
+
+---
+
+## **FP1: Project Understanding** ✅ (COMPLETE)
+- Project scope, goals, and vision defined
+- Users and stakeholders identified
+- Primary goals documented
+
+---
+
+## **FP2: Research, Design & Planning** (NEXT)
+
+**Duration:** 1-2 weeks
+
+**Goals:**
+- Research competitive products and open-source solutions
+- Deep dive into technology stack
+- Create preliminary architecture
+- Identify risks and mitigation strategies
+- Set up development environment
+
+**Deliverables:**
+- `RESEARCH.md` — Competitive analysis (what exists, what's missing)
+- `TECH_STACK_DEEP_DIVE.md` — Why each technology choice, with alternatives considered
+- `ARCHITECTURE.md` — System design, data flow, component breakdown
+- `RISKS.md` — Major risks with mitigation strategies
+- Development environment setup (Python/Node/Docker/Neo4j running locally)
+- Project repository structure initialized
+
+**Key Tasks:**
+- Review tools: GitHub Dependency Graph, SonarQube, Sourcetrail, Lattix, etc.
+- Test tree-sitter on sample Python/JS files
+- Spin up local Neo4j instance
+- Research graph visualization libraries (Cytoscape, Vis.js, D3.js)
+- Identify which languages to support in MVP (Python + JavaScript recommended)
+
+**Success Criteria:**
+- Team understands technology choices and rationale
+- Local development environment working for all team members
+- Architecture diagram complete
+- Risk register established
+
+---
+
+## **FP3: Backend Foundation & Tree-Sitter Integration** 
+
+**Duration:** 1-2 weeks
+
+**Goals:**
+- Set up Python backend (FastAPI)
+- Integrate tree-sitter code parser
+- Extract basic AST structure from code
+- Build symbol extraction pipeline for Python
+
+**Deliverables:**
+- FastAPI server skeleton with REST endpoints
+- tree-sitter parser wrapper (Python)
+- Symbol extractor for Python (Classes, Functions, Methods, Variables)
+- Unit tests for symbol extraction
+- Documentation on how parser works
+
+**Key Tasks:**
+- Set up FastAPI project structure
+- Install and configure tree-sitter
+- Implement parser for Python files
+- Extract symbols: file path, class names, function names, line numbers
+- Write tests against sample Python files
+- Create utility functions for traversing AST
+
+**Success Criteria:**
+- Can parse 100 Python files and extract all top-level classes/functions
+- Symbol extractor works correctly on test suite
+- API endpoints defined and documented
+- Tests passing with 80%+ code coverage
+
+---
+
+## **FP4: JavaScript/TypeScript Parser & Neo4j Schema**
+
+**Duration:** 1-2 weeks
+
+**Goals:**
+- Extend parser to support JavaScript/TypeScript
+- Design and implement Neo4j data model
+- Begin storing parsed data in Neo4j
+
+**Deliverables:**
+- tree-sitter parser for JavaScript/TypeScript
+- Neo4j schema (node types, relationship types, properties)
+- Neo4j driver integration with Python backend
+- Symbol extractor for JavaScript
+- Migration scripts to populate Neo4j from parsed code
+
+**Key Tasks:**
+- Add JavaScript/TypeScript grammar to tree-sitter
+- Design Neo4j schema (File, Class, Function, Method, Variable nodes)
+- Create Neo4j connection pool in FastAPI
+- Implement insert operations for nodes/relationships
+- Write tests for Neo4j interactions
+- Create sample data loader for testing
+
+**Success Criteria:**
+- Can parse 100 JS files and extract classes/functions
+- Neo4j database contains properly structured nodes and relationships
+- Can query Neo4j and retrieve symbol information
+- Schema supports future expansion (other languages, relationship types)
+
+---
+
+## **FP5: Dependency Graph Construction**
+
+**Duration:** 2 weeks
+
+**Goals:**
+- Extract import/dependency relationships
+- Build dependency graph in Neo4j
+- Implement relationship types (IMPORTS, CALLS, CONTAINS, etc.)
+- Create initial dependency analysis queries
+
+**Deliverables:**
+- Dependency extractor (identifies imports between files)
+- Relationship builder (connects nodes in Neo4j)
+- Graph queries for common questions ("What does file X import?" "What imports class Y?")
+- Test suite validating dependency accuracy
+- Performance benchmarks on sample codebases
+
+**Key Tasks:**
+- Parse import statements (Python: import/from, JS: import/require)
+- Map file imports to file nodes in Neo4j
+- Implement function call detection (static analysis)
+- Create IMPORTS, CALLS, CONTAINS relationships
+- Write Neo4j queries for dependency traversal
+- Benchmark on 10K, 50K, 100K line codebases
+- Handle edge cases (circular imports, dynamic imports)
+
+**Success Criteria:**
+- Dependency graph accurately represents file imports
+- Can parse 50K-line codebase in <2 minutes
+- Queries return results in <500ms
+- Edge cases documented and handled gracefully
+
+---
+
+## **FP6: Symbol Index & Search**
+
+**Duration:** 1-2 weeks
+
+**Goals:**
+- Build comprehensive symbol index (searchable)
+- Implement search endpoints in backend
+- Optimize Neo4j indexes for fast lookups
+
+**Deliverables:**
+- Symbol search API endpoints (find class, find function, find file)
+- Full-text search support in Neo4j
+- Index optimization (performance tuning)
+- Search result ranking/relevance
+- API documentation
+
+**Key Tasks:**
+- Create Neo4j full-text search indexes
+- Implement search endpoint (query by symbol name)
+- Add fuzzy matching (handle typos)
+- Rank results by relevance (exact match > partial match)
+- Test search performance on large codebases
+- Build search result pagination
+
+**Success Criteria:**
+- Symbol search returns results in <500ms
+- Fuzzy search handles common typos
+- Search works on codebases with 10K+ symbols
+- API fully documented and tested
+
+---
+
+## **FP7: Frontend Setup & Basic UI**
+
+**Duration:** 2 weeks
+
+**Goals:**
+- Create React/TypeScript frontend scaffold
+- Build file upload interface
+- Implement basic navigation
+- Wire up to backend API
+
+**Deliverables:**
+- React project with TypeScript configuration
+- File upload component (local files, ZIP)
+- API client (communicates with backend)
+- Basic layout/navigation
+- Loading states and error handling
+- Unit tests for components
+
+**Key Tasks:**
+- Set up Create React App or Vite project
+- Design UI mockups (upload, analysis, search screens)
+- Build upload component with progress tracking
+- Create API client service layer
+- Implement routing (main screen, results screen, etc.)
+- Add error boundaries and error messages
+- Test components in isolation
+
+**Success Criteria:**
+- React app runs locally and connects to backend
+- Upload interface is intuitive
+- API calls work correctly
+- Error states handled gracefully
+- Components have basic test coverage
+
+---
+
+## **FP8: Graph Visualization & Navigation**
+
+**Duration:** 2 weeks
+
+**Goals:**
+- Integrate graph visualization library (Cytoscape.js)
+- Render dependency graph interactively
+- Implement zoom, pan, filtering, highlighting
+- Enable navigation between related components
+
+**Deliverables:**
+- Interactive graph visualization (Cytoscape.js)
+- Zoom/pan/filter controls
+- Node highlighting (show all dependencies of a node)
+- Search integration (highlight found symbols)
+- Performance optimization for large graphs
+- Tests for visualization components
+
+**Key Tasks:**
+- Integrate Cytoscape.js into React
+- Fetch graph data from backend
+- Render nodes and edges
+- Implement zoom, pan controls
+- Add node/edge styling (colors, labels)
+- Implement click-to-explore (show related nodes)
+- Handle large graphs (clustering, pagination)
+- Optimize rendering performance
+
+**Success Criteria:**
+- Graph renders correctly with 1K+ nodes
+- Interaction is smooth (pan/zoom/click)
+- Can search and highlight in real-time
+- Works on large codebases without lag
+- Responsive design (works on tablet)
+
+---
+
+## **FP9: GitHub/GitLab Integration & End-to-End Testing**
+
+**Duration:** 2 weeks
+
+**Goals:**
+- Add GitHub/GitLab repository import
+- Test complete pipeline end-to-end
+- Optimize performance to meet MVP targets
+- Fix bugs discovered during testing
+
+**Deliverables:**
+- GitHub OAuth integration (or token-based auth)
+- GitLab integration
+- Repository picker interface
+- Real-world codebase testing
+- Performance optimization
+- Bug fixes and refinement
+- End-to-end integration tests
+
+**Key Tasks:**
+- Implement GitHub API integration (clone repo, fetch file list)
+- Implement GitLab API integration
+- Build repo picker UI
+- Test on real open-source projects (10K-500K lines)
+- Identify and fix performance bottlenecks
+- Handle edge cases (large repos, binary files, etc.)
+- Optimize Neo4j queries
+- Write integration tests
+
+**Success Criteria:**
+- Can import and analyze GitHub/GitLab repos
+- MVP target met: 50K-line codebase parsed in <2 minutes
+- Interactive graph visualization responsive with 5K+ nodes
+- All integrations tested and working
+- Known issues documented
+
+---
+
+## **FP10: Polish, Optimization & User Validation**
+
+**Duration:** 2 weeks
+
+**Goals:**
+- Final performance optimization
+- User testing and feedback incorporation
+- Complete documentation
+- Production-ready code quality
+- Plan for future iterations
+
+**Deliverables:**
+- Performance benchmarks (final)
+- User testing report (with feedback)
+- Complete API documentation
+- Deployment guide (Docker, cloud, etc.)
+- Architectural decision record (ADR)
+- Roadmap for future features (v2, v3)
+- README and developer guide
+
+**Key Tasks:**
+- Run performance tests on various codebases
+- Conduct user testing sessions (get real developer feedback)
+- Fix remaining bugs
+- Add monitoring/logging for production
+- Write deployment documentation
+- Create user guide/tutorial
+- Document technical debt and future improvements
+- Plan additional language support, advanced features
+- Set up CI/CD pipeline
+
+**Success Criteria:**
+- Performance meets or exceeds MVP targets
+- Users find tool intuitive and useful
+- Code is well-documented and maintainable
+- Deployment guide allows running on any cloud
+- Team has clear roadmap for post-MVP features
+- Feedback collected for v2 planning
+
+---
+
+## **Summary Timeline**
+
+| Phase | Iteration | Duration | Focus |
+|-------|-----------|----------|-------|
+| Planning | FP2 | 1-2 weeks | Research, design, setup |
+| Core Backend | FP3-FP4 | 2-4 weeks | Parsing, Neo4j, foundation |
+| Graph Building | FP5-FP6 | 3-4 weeks | Dependencies, search, indexing |
+| Frontend | FP7-FP8 | 4 weeks | UI, visualization, interaction |
+| Integration | FP9 | 2 weeks | GitHub/GitLab, end-to-end testing |
+| Refinement | FP10 | 2 weeks | Optimization, documentation, launch |
+| **Total** | **10 iterations** | **~18-20 weeks** | **Product launch ready** |
+
+---
+
+## **Key Assumptions**
+
+1. **Team Size:** 2-3 developers (tasks may be parallelized)
+2. **Weekly Cadence:** Each iteration is approximately 1-2 weeks depending on complexity
+3. **Scope:** Python + JavaScript support only (v1); other languages in v2+
+4. **MVP Target:** 50K-line codebase parsed in <2 minutes with interactive visualization
+5. **Learning Curve:** Time allocated for team learning (tree-sitter, Neo4j, Cytoscape)
+
+---
+
+## **Risk Mitigations Built Into Plan**
+
+| Risk | Mitigation Strategy |
+|------|-------------------|
+| tree-sitter learning curve | FP2 research + FP3 spike time |
+| Neo4j performance issues | FP5 benchmarking, FP9 optimization |
+| Graph visualization lag | FP8 includes performance optimization |
+| GitHub API rate limits | FP9 planning, caching implementation |
+| Unfamiliar tech stack | Spread across iterations, pair programming |
+| Scope creep | Clear MVP definition, v2 roadmap for extras |
+
+---
+
+## **Flexibility & Adjustment**
+
+This plan assumes:
+- Iterations may take 1-2 weeks depending on complexity
+- Parallel work possible (e.g., FP7 UI work while FP5 backend work continues)
+- Buffer built into FP9-FP10 for unexpected issues
+- FP10 can be extended if needed for user testing
+
+**Expected Checkpoints:**
+- After FP4: Backend foundation complete, team confident in architecture
+- After FP6: Symbol index working, can search codebase
+- After FP8: Visualization working, can explore dependency graph
+- After FP9: Complete pipeline functional on real codebases
+- After FP10: Product ready for public use or handoff
