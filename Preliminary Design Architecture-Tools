@@ -24,3 +24,5 @@ Development Tools:
 Development will primarily use Visual Studio Code, Git, GitHub, and Neo4j tools. Git will be used for version control and collaboration between team members.
 
 Overall, the preliminary architecture will use React/TypeScript for the user interface, a Python-based REST API for backend processing, and Neo4j for storing and querying the code dependency graph. These technologies may be adjusted as development progresses and the team gains a better understanding of the project's technical requirements.
+
+React -> TypeScript -> REST API -> Python -> Code Parser -> Neo4j
