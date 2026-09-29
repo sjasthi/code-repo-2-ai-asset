@@ -137,3 +137,80 @@ class User:
     )
 
     assert symbols[0]["line"] == 2
+
+
+def test_identifies_tuple_unpacking_variables():
+
+    source_code = """
+x, y = 1, 2
+"""
+
+    extractor = PythonSymbolExtractor()
+
+    symbols = extractor.extract_symbols(
+        source_code,
+        "sample.py"
+    )
+
+    names = [symbol["name"] for symbol in symbols]
+
+    assert "x" in names
+    assert "y" in names
+
+
+def test_identifies_augmented_assignment_variable():
+
+    source_code = """
+count = 0
+count += 1
+"""
+
+    extractor = PythonSymbolExtractor()
+
+    symbols = extractor.extract_symbols(
+        source_code,
+        "sample.py"
+    )
+
+    names = [symbol["name"] for symbol in symbols]
+
+    assert names.count("count") == 2
+
+
+def test_does_not_treat_attribute_target_as_variable():
+
+    source_code = """
+obj.attr = 1
+"""
+
+    extractor = PythonSymbolExtractor()
+
+    symbols = extractor.extract_symbols(
+        source_code,
+        "sample.py"
+    )
+
+    assert symbols == []
+
+
+def test_handles_multibyte_characters_without_corrupting_names():
+
+    source_code = '''
+def show_menu():
+    print("No tasks found! Your schedule is clear. 🎉")
+
+def add_task():
+    print("✅ Task added.")
+'''
+
+    extractor = PythonSymbolExtractor()
+
+    symbols = extractor.extract_symbols(
+        source_code,
+        "sample.py"
+    )
+
+    names = [symbol["name"] for symbol in symbols]
+
+    assert "show_menu" in names
+    assert "add_task" in names
