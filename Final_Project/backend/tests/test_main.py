@@ -55,3 +55,30 @@ def test_parse_python_handles_empty_source():
 
     assert response.status_code == 200
     assert response.json()["symbols"] == []
+
+
+def test_parse_javascript_returns_extracted_symbols():
+
+    response = client.post(
+        "/parse/javascript",
+        json={
+            "file_path": "example.js",
+            "source_code": """
+class User {
+}
+"""
+        }
+    )
+
+    assert response.status_code == 200
+
+    body = response.json()
+
+    assert body["file"] == "example.js"
+
+    names = [
+        symbol["name"]
+        for symbol in body["symbols"]
+    ]
+
+    assert "User" in names
