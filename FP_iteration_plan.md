@@ -51,7 +51,6 @@ This plan breaks the project into 10 focused iterations, each with clear deliver
 **Goals:**
 - Set up Python backend (FastAPI)
 - Integrate tree-sitter code parser
-- Extract basic AST structure from code
 - Build symbol extraction pipeline for Python
 
 **Deliverables:**
@@ -59,7 +58,6 @@ This plan breaks the project into 10 focused iterations, each with clear deliver
 - tree-sitter parser wrapper (Python)
 - Symbol extractor for Python (Classes, Functions, Methods, Variables)
 - Unit tests for symbol extraction
-- Documentation on how parser works
 
 **Key Tasks:**
 - Set up FastAPI project structure
@@ -69,11 +67,6 @@ This plan breaks the project into 10 focused iterations, each with clear deliver
 - Write tests against sample Python files
 - Create utility functions for traversing AST
 
-**Success Criteria:**
-- Can parse 100 Python files and extract all top-level classes/functions
-- Symbol extractor works correctly on test suite
-- API endpoints defined and documented
-- Tests passing with 80%+ code coverage
 
 ---
 
