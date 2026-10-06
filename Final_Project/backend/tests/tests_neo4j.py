@@ -33,8 +33,8 @@ def test_create_file(database):
     database.initialize_schema()
 
     result = database.create_file(
-        "test_file.js",
-        "javascript"
+        "test_file.ts",
+        "typescript"
     )
 
     assert result is not None
@@ -74,7 +74,7 @@ def test_create_file_symbol_relationship(database):
 
     symbol = {
         "type": "function",
-        "name": "hello",
+        "name": "function_test",
         "file_path": "relationship.js",
         "line": 1
     }
