@@ -1,3 +1,11 @@
+# Symbol type from the parser -> Neo4j node label.
+SYMBOL_LABELS = {
+    "class": "Class",
+    "function": "Function",
+    "method": "Method",
+    "variable": "Variable",
+}
+
 
 class DependencyGraphBuilder:
     """
@@ -57,6 +65,62 @@ class DependencyGraphBuilder:
             "function_name": function_name,
             "line": line,
         })
+
+    def clear_stale_symbols(self, file_path: str, symbols: list):
+        """
+        Remove a file's stored symbols that are no longer in it (deleted,
+        renamed or moved lines). Unchanged symbols are kept, so edges
+        pointing at them, such as CALLS, survive re-analysis.
+        """
+        keep = [
+            [SYMBOL_LABELS[symbol["type"]], symbol["name"], symbol["line"]]
+            for symbol in symbols
+            if symbol["type"] in SYMBOL_LABELS
+        ]
+
+        query = """
+        MATCH (:File {path: $file_path})-[:CONTAINS]->(symbol)
+        WHERE NOT [labels(symbol)[0], symbol.name, symbol.line] IN $keep
+        DETACH DELETE symbol
+        """
+
+        return self.db.execute_query(query, {
+            "file_path": file_path,
+            "keep": keep,
+        })
+
+    def store_symbol(self, symbol: dict):
+        label = SYMBOL_LABELS.get(symbol["type"])
+
+        # Skip kinds the schema has no label for yet (e.g. interface).
+        if not label:
+            return False
+
+        query = f"""
+        MERGE (f:File {{path: $file_path}})
+        MERGE (s:{label} {{
+            name: $name,
+            file_path: $file_path,
+            line: $line
+        }})
+        MERGE (f)-[:CONTAINS]->(s)
+        """
+
+        self.db.execute_query(query, {
+            "file_path": symbol["file_path"],
+            "name": symbol["name"],
+            "line": symbol["line"],
+        })
+
+        return True
+
+    def store_symbols(self, file_path: str, symbols: list):
+        self.clear_stale_symbols(file_path, symbols)
+
+        return sum(
+            1 for symbol in symbols
+            if self.store_symbol(symbol)
+        )
 
     def store_dependencies(self, file_path: str, language: str,
                            dependencies: list):

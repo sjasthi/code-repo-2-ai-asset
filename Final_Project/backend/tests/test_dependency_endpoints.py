@@ -2,7 +2,11 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app, get_database
-from app.database.graph_queries import FILE_IMPORTS, FILE_IMPORTED_BY
+from app.database.graph_queries import (
+    FILE_IMPORTS,
+    FILE_IMPORTED_BY,
+    CLASS_IMPORTED_BY,
+)
 
 
 class FakeDatabase:
@@ -91,4 +95,50 @@ def test_analyze_endpoint_stores_imports_and_calls(fake_database):
     ]
 
     assert imports[0]["resolved_target"] == "dependency_helpers.py"
-    assert len(fake_database.queries) == 3
+
+
+def test_analyze_endpoint_stores_symbols_with_contains(fake_database):
+
+    response = client.post(
+        "/dependencies/analyze",
+        params={"language": "python"},
+        json={
+            "file_path": "models.py",
+            "source_code": "class User:\n    def greet(self):\n        pass\n"
+        }
+    )
+
+    assert response.status_code == 200
+    assert response.json()["symbols_stored"] == 2
+
+    contains_queries = [
+        (query, parameters)
+        for query, parameters in fake_database.queries
+        if "MERGE (f)-[:CONTAINS]->(s)" in query
+    ]
+
+    assert [
+        parameters["name"] for _, parameters in contains_queries
+    ] == ["User", "greet"]
+    assert ":Class" in contains_queries[0][0]
+    assert ":Method" in contains_queries[1][0]
+
+
+def test_class_imported_by_endpoint_queries_by_class_name(fake_database):
+
+    fake_database.results = [{
+        "importing_file": "dependency_app.py",
+        "defined_in": "models.py",
+        "line": 1
+    }]
+
+    response = client.get(
+        "/dependencies/class-imported-by",
+        params={"class_name": "User"}
+    )
+
+    assert response.status_code == 200
+    assert response.json()[0]["importing_file"] == "dependency_app.py"
+    assert fake_database.queries == [
+        (CLASS_IMPORTED_BY, {"class_name": "User"})
+    ]

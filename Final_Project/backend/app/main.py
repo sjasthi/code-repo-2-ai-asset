@@ -6,7 +6,11 @@ from app.database.neo4j import Neo4jConnection
 from app.dependencies.extractor import DependencyExtractor
 from app.dependencies.resolver import ImportResolver
 from app.database.graph_builder import DependencyGraphBuilder
-from app.database.graph_queries import FILE_IMPORTS, FILE_IMPORTED_BY
+from app.database.graph_queries import (
+    FILE_IMPORTS,
+    FILE_IMPORTED_BY,
+    CLASS_IMPORTED_BY,
+)
 
 
 app = FastAPI(
@@ -181,6 +185,17 @@ def get_file_imported_by(
     )
 
 
+@app.get("/dependencies/class-imported-by")
+def get_class_imported_by(
+    class_name: str,
+    database: Neo4jConnection = Depends(get_database),
+):
+    return database.execute_query(
+        CLASS_IMPORTED_BY,
+        {"class_name": class_name},
+    )
+
+
 @app.post("/dependencies/analyze")
 def analyze_and_store_dependencies(
     request: CodeRequest,
@@ -213,10 +228,19 @@ def analyze_and_store_dependencies(
         dependencies,
     )
 
+    _, symbols, _ = extract_symbols(
+        request.source_code,
+        request.file_path,
+        language,
+    )
+
+    symbols_stored = builder.store_symbols(request.file_path, symbols)
+
     return {
         "file": request.file_path,
         "language": language,
         "dependencies_found": len(dependencies),
         "relationships_stored": stored_count,
+        "symbols_stored": symbols_stored,
         "dependencies": dependencies,
     }

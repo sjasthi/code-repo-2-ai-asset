@@ -118,3 +118,38 @@ Example request:
     "file_path": "example.py",
     "source_code": "class User:\n    pass"
 }
+```
+
+## Dependency Endpoints
+
+These endpoints support Python and JavaScript/TypeScript (`language` query
+parameter, default `python`). All except `/dependencies/parse` need Neo4j running.
+
+### POST /dependencies/parse
+
+Returns a file's imports and function calls without storing anything.
+
+### POST /dependencies/analyze
+
+Stores the file in Neo4j with its relationships:
+
+- `IMPORTS` to local files it imports
+- `CALLS` to functions it calls
+- `CONTAINS` to the classes, functions, methods and variables defined in it
+
+Re-analysing a file removes symbols that no longer exist (or moved lines)
+and keeps the rest.
+
+### GET /dependencies/imports?file_path=...
+
+What files does this file import?
+
+### GET /dependencies/imported-by?file_path=...
+
+What files import this file?
+
+### GET /dependencies/class-imported-by?class_name=...
+
+What files import the file that defines this class? Imports are tracked per
+file, so a file is listed if it imports the class's file, even if it uses a
+different name from it. Both files must have been analysed first.

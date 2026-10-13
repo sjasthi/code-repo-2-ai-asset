@@ -13,6 +13,16 @@ RETURN source.path AS importing_file
 ORDER BY importing_file
 """
 
+# What files import the file that defines a given class?
+# Imports are tracked per file, so this is "imports the class's file".
+CLASS_IMPORTED_BY = """
+MATCH (importer:File)-[:IMPORTS]->(file:File)-[:CONTAINS]->(class:Class {name: $class_name})
+RETURN importer.path AS importing_file,
+       file.path AS defined_in,
+       class.line AS line
+ORDER BY importing_file, defined_in
+"""
+
 # Show direct and indirect dependencies up to 5 edges away.
 DEPENDENCY_CHAIN = """
 MATCH path = (source:File {path: $file_path})-[:IMPORTS*1..5]->(target:File)
