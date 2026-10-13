@@ -138,7 +138,7 @@ def test_parse_rejects_unknown_extension():
     response = client.post(
         "/parse",
         json={
-            "file_path": "main.rb",
+            "file_path": "notes.txt",
             "source_code": "puts 'hi'\n"
         }
     )
@@ -158,3 +158,21 @@ def test_parse_rejects_unknown_language():
     )
 
     assert response.status_code == 400
+
+
+def test_parse_handles_tags_query_language():
+
+    response = client.post(
+        "/parse",
+        json={
+            "file_path": "main.go",
+            "source_code": "package main\n\nfunc main() {}\n"
+        }
+    )
+
+    assert response.status_code == 200
+
+    body = response.json()
+
+    assert body["language"] == "go"
+    assert body["symbols"][0]["name"] == "main"

@@ -80,13 +80,31 @@ Returns the backend health status.
 
 ### POST /parse
 
-Parses Python, JavaScript, or TypeScript source code and returns the extracted symbols.
+Parses source code and returns the extracted symbols.
 
-The language is detected from the `file_path` extension
-(`.py`, `.pyi`, `.js`, `.jsx`, `.mjs`, `.cjs`, `.ts`, `.mts`, `.cts`).
-You can override it with an optional `language` field
-(`python`/`py`, `javascript`/`js`, `typescript`/`ts`).
-Unsupported languages or extensions return `400`.
+The language is detected from the `file_path` extension, or set explicitly
+with an optional `language` field. Unsupported languages or extensions return `400`.
+
+| Language   | `language` values      | Extensions                                 |
+|------------|------------------------|--------------------------------------------|
+| Python     | `python`, `py`         | `.py`, `.pyi`                              |
+| JavaScript | `javascript`, `js`     | `.js`, `.jsx`, `.mjs`, `.cjs`              |
+| TypeScript | `typescript`, `ts`     | `.ts`, `.mts`, `.cts`                      |
+| Go         | `go`, `golang`         | `.go`                                      |
+| Rust       | `rust`, `rs`           | `.rs`                                      |
+| Java       | `java`                 | `.java`                                    |
+| C          | `c`                    | `.c`, `.h`                                 |
+| C++        | `cpp`, `c++`           | `.cpp`, `.cc`, `.cxx`, `.hpp`, `.hh`, `.hxx` |
+| Ruby       | `ruby`, `rb`           | `.rb`                                      |
+
+Python, JavaScript, and TypeScript use hand-written extractors. The other
+languages share one generic extractor (`app/parser/tags_symbols.py`) that runs
+tree-sitter "tags" queries from `tree-sitter-language-pack`. To add a language
+the pack supports, add it to `TAGS_LANGUAGES` and `EXTENSIONS` in
+`app/parser/registry.py`.
+
+The language pack downloads each grammar the first time it is used and caches
+it locally, so the first request for a new language needs internet access.
 
 Example request:
 

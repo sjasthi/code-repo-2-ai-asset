@@ -1,19 +1,29 @@
+from functools import partial
 from pathlib import Path
 
 from .python_symbols import PythonSymbolExtractor
 from .javascript_symbols import JavaScriptSymbolExtractor
 from .typescript_symbols import TypeScriptSymbolExtractor
+from .tags_symbols import TagsSymbolExtractor
 
 
 class UnsupportedLanguageError(ValueError):
     pass
 
 
-# Canonical language name -> symbol extractor class.
+# Languages handled by the generic tags-query extractor.
+# Adding one here (plus its extensions below) is all a new language needs.
+TAGS_LANGUAGES = ("go", "rust", "java", "c", "cpp", "ruby")
+
+# Canonical language name -> symbol extractor factory.
 EXTRACTORS = {
     "python": PythonSymbolExtractor,
     "javascript": JavaScriptSymbolExtractor,
     "typescript": TypeScriptSymbolExtractor,
+    **{
+        language: partial(TagsSymbolExtractor, language)
+        for language in TAGS_LANGUAGES
+    },
 }
 
 # Short names accepted for the optional "language" field.
@@ -21,6 +31,10 @@ LANGUAGE_ALIASES = {
     "py": "python",
     "js": "javascript",
     "ts": "typescript",
+    "golang": "go",
+    "rs": "rust",
+    "c++": "cpp",
+    "rb": "ruby",
 }
 
 # File extension -> canonical language name.
@@ -34,6 +48,18 @@ EXTENSIONS = {
     ".ts": "typescript",
     ".mts": "typescript",
     ".cts": "typescript",
+    ".go": "go",
+    ".rs": "rust",
+    ".java": "java",
+    ".c": "c",
+    ".h": "c",
+    ".cpp": "cpp",
+    ".cc": "cpp",
+    ".cxx": "cpp",
+    ".hpp": "cpp",
+    ".hh": "cpp",
+    ".hxx": "cpp",
+    ".rb": "ruby",
 }
 
 
