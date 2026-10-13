@@ -72,6 +72,9 @@ class TagsSymbolExtractor:
         source_bytes = source_code.encode("utf-8")
         tree = self.parser.parse(source_bytes)
 
+        # Kept so callers can check tree.root_node.has_error.
+        self.tree = tree
+
         # (start_byte, end_byte) of the definition node -> symbol
         found = {}
 

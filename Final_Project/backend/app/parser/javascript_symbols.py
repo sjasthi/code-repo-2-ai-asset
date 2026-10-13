@@ -8,6 +8,9 @@ class JavaScriptSymbolExtractor:
     def extract_symbols(self, source_code: str, file_path: str):
         tree = self.parser.parse(source_code)
 
+        # Kept so callers can check tree.root_node.has_error.
+        self.tree = tree
+
         source_bytes = source_code.encode("utf-8")
         symbols = []
 

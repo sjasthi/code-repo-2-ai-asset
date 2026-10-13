@@ -102,11 +102,14 @@ def extract_symbols(
     """
     Detect the language and extract symbols with the matching extractor.
 
-    Returns (language, symbols).
+    Returns (language, symbols, has_syntax_errors). Tree-sitter recovers
+    from errors, so symbols may still be partial when has_syntax_errors
+    is true, e.g. for a half-edited file or the wrong language.
     """
     language = detect_language(file_path, language)
     extractor = get_extractor(language)
 
     symbols = extractor.extract_symbols(source_code, file_path)
+    has_syntax_errors = extractor.tree.root_node.has_error
 
-    return language, symbols
+    return language, symbols, has_syntax_errors

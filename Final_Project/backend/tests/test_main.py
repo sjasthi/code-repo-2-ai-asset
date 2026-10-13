@@ -176,3 +176,47 @@ def test_parse_handles_tags_query_language():
 
     assert body["language"] == "go"
     assert body["symbols"][0]["name"] == "main"
+
+
+def test_parse_reports_no_syntax_errors_for_valid_code():
+
+    response = client.post(
+        "/parse",
+        json={
+            "file_path": "lib.rs",
+            "source_code": "fn main() {}\n"
+        }
+    )
+
+    assert response.json()["has_syntax_errors"] is False
+
+
+def test_parse_flags_code_with_wrong_extension():
+
+    # Rust source sent as a .java file parses as broken Java.
+    response = client.post(
+        "/parse",
+        json={
+            "file_path": "lib.java",
+            "source_code": "impl User {\n    fn new() -> Self { todo!() }\n}\n"
+        }
+    )
+
+    assert response.status_code == 200
+    assert response.json()["has_syntax_errors"] is True
+
+
+def test_parse_flags_partially_broken_code_but_keeps_symbols():
+
+    response = client.post(
+        "/parse",
+        json={
+            "file_path": "sample.py",
+            "source_code": "class User:\n    pass\n\ndef broken(:\n"
+        }
+    )
+
+    body = response.json()
+
+    assert body["has_syntax_errors"] is True
+    assert "User" in [symbol["name"] for symbol in body["symbols"]]

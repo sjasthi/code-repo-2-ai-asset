@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
 from pydantic import BaseModel
 
 from app.parser.registry import extract_symbols, UnsupportedLanguageError
@@ -14,6 +14,19 @@ app = FastAPI(
     description="Backend for analyzing source code and extracting symbols.",
     version="0.1.0"
 )
+
+
+def get_database():
+    """
+    Open a Neo4j connection for one request and close it afterwards.
+    """
+    database = Neo4jConnection()
+
+    try:
+        yield database
+
+    finally:
+        database.close()
 
 
 class CodeRequest(BaseModel):
@@ -44,7 +57,7 @@ def health():
 def parse(request: ParseRequest):
 
     try:
-        language, symbols = extract_symbols(
+        language, symbols, has_syntax_errors = extract_symbols(
             request.source_code,
             request.file_path,
             request.language
@@ -56,6 +69,7 @@ def parse(request: ParseRequest):
     return {
         "file": request.file_path,
         "language": language,
+        "has_syntax_errors": has_syntax_errors,
         "symbols": symbols
     }
 
@@ -146,16 +160,22 @@ def parse_dependencies(request: CodeRequest, language: str = "python"):
 
 
 @app.get("/dependencies/imports")
-def get_file_imports(file_path: str):
-    return neo4j_connection.execute_query(
+def get_file_imports(
+    file_path: str,
+    database: Neo4jConnection = Depends(get_database),
+):
+    return database.execute_query(
         FILE_IMPORTS,
         {"file_path": file_path},
     )
 
 
 @app.get("/dependencies/imported-by")
-def get_file_imported_by(file_path: str):
-    return neo4j_connection.execute_query(
+def get_file_imported_by(
+    file_path: str,
+    database: Neo4jConnection = Depends(get_database),
+):
+    return database.execute_query(
         FILE_IMPORTED_BY,
         {"file_path": file_path},
     )
@@ -165,6 +185,7 @@ def get_file_imported_by(file_path: str):
 def analyze_and_store_dependencies(
     request: CodeRequest,
     language: str = "python",
+    database: Neo4jConnection = Depends(get_database),
 ):
     extractor = DependencyExtractor()
 
@@ -184,7 +205,7 @@ def analyze_and_store_dependencies(
                 language,
             )
 
-    builder = DependencyGraphBuilder(neo4j_connection)
+    builder = DependencyGraphBuilder(database)
 
     stored_count = builder.store_dependencies(
         request.file_path,

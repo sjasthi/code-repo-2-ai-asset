@@ -103,6 +103,11 @@ tree-sitter "tags" queries from `tree-sitter-language-pack`. To add a language
 the pack supports, add it to `TAGS_LANGUAGES` and `EXTENSIONS` in
 `app/parser/registry.py`.
 
+The response includes `has_syntax_errors`. It is `true` when the code does
+not parse cleanly, for example a half-edited file or code sent with the wrong
+extension (Rust source in a `.java` file). Symbols are still returned, but may
+be incomplete or empty.
+
 The language pack downloads each grammar the first time it is used and caches
 it locally, so the first request for a new language needs internet access.
 
