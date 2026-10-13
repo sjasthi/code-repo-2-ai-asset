@@ -78,9 +78,15 @@ Checks that the backend is running.
 
 Returns the backend health status.
 
-### POST /parse/python
+### POST /parse
 
-Parses Python source code and returns the extracted symbols.
+Parses Python, JavaScript, or TypeScript source code and returns the extracted symbols.
+
+The language is detected from the `file_path` extension
+(`.py`, `.pyi`, `.js`, `.jsx`, `.mjs`, `.cjs`, `.ts`, `.mts`, `.cts`).
+You can override it with an optional `language` field
+(`python`/`py`, `javascript`/`js`, `typescript`/`ts`).
+Unsupported languages or extensions return `400`.
 
 Example request:
 

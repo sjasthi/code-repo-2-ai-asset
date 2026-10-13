@@ -1,9 +1,7 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
-from app.parser.python_symbols import PythonSymbolExtractor
-from app.parser.javascript_symbols import JavaScriptSymbolExtractor
-from app.parser.typescript_symbols import TypeScriptSymbolExtractor
+from app.parser.registry import extract_symbols, UnsupportedLanguageError
 from app.database.neo4j import Neo4jConnection
 from app.dependencies.extractor import DependencyExtractor
 from app.dependencies.resolver import ImportResolver
@@ -23,6 +21,11 @@ class CodeRequest(BaseModel):
     source_code: str
 
 
+class ParseRequest(CodeRequest):
+    # Optional override; detected from file_path's extension when omitted.
+    language: str | None = None
+
+
 @app.get("/")
 def root():
     return {
@@ -37,50 +40,22 @@ def health():
     }
 
 
-@app.post("/parse/python")
-def parse_python(request: CodeRequest):
+@app.post("/parse")
+def parse(request: ParseRequest):
 
-    extractor = PythonSymbolExtractor()
+    try:
+        language, symbols = extract_symbols(
+            request.source_code,
+            request.file_path,
+            request.language
+        )
 
-    symbols = extractor.extract_symbols(
-        request.source_code,
-        request.file_path
-    )
-
-    return {
-        "file": request.file_path,
-        "symbols": symbols
-    }
-
-
-@app.post("/parse/javascript")
-def parse_javascript(request: CodeRequest):
-
-    extractor = JavaScriptSymbolExtractor()
-
-    symbols = extractor.extract_symbols(
-        request.source_code,
-        request.file_path
-    )
+    except UnsupportedLanguageError as error:
+        raise HTTPException(status_code=400, detail=str(error))
 
     return {
         "file": request.file_path,
-        "symbols": symbols
-    }
-
-
-@app.post("/parse/typescript")
-def parse_typescript(request: CodeRequest):
-
-    extractor = TypeScriptSymbolExtractor()
-
-    symbols = extractor.extract_symbols(
-        request.source_code,
-        request.file_path
-    )
-
-    return {
-        "file": request.file_path,
+        "language": language,
         "symbols": symbols
     }
 

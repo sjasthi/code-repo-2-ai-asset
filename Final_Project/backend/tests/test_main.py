@@ -27,7 +27,7 @@ def test_health_returns_healthy_status():
 def test_parse_python_returns_extracted_symbols():
 
     response = client.post(
-        "/parse/python",
+        "/parse",
         json={
             "file_path": "sample.py",
             "source_code": "class User:\n    pass\n"
@@ -46,7 +46,7 @@ def test_parse_python_returns_extracted_symbols():
 def test_parse_python_handles_empty_source():
 
     response = client.post(
-        "/parse/python",
+        "/parse",
         json={
             "file_path": "empty.py",
             "source_code": ""
@@ -60,7 +60,7 @@ def test_parse_python_handles_empty_source():
 def test_parse_javascript_returns_extracted_symbols():
 
     response = client.post(
-        "/parse/javascript",
+        "/parse",
         json={
             "file_path": "example.js",
             "source_code": """
@@ -82,3 +82,79 @@ class User {
     ]
 
     assert "User" in names
+
+def test_parse_detects_language_from_extension():
+
+    response = client.post(
+        "/parse",
+        json={
+            "file_path": "example.ts",
+            "source_code": "interface User {\n  id: number;\n}\nclass Admin {}\n"
+        }
+    )
+
+    assert response.status_code == 200
+
+    body = response.json()
+
+    assert body["language"] == "typescript"
+    assert "Admin" in [symbol["name"] for symbol in body["symbols"]]
+
+
+def test_parse_reports_detected_language_for_python():
+
+    response = client.post(
+        "/parse",
+        json={
+            "file_path": "sample.py",
+            "source_code": "def run():\n    pass\n"
+        }
+    )
+
+    assert response.json()["language"] == "python"
+
+
+def test_parse_explicit_language_overrides_extension():
+
+    response = client.post(
+        "/parse",
+        json={
+            "file_path": "script.txt",
+            "language": "js",
+            "source_code": "function start() {}\n"
+        }
+    )
+
+    assert response.status_code == 200
+
+    body = response.json()
+
+    assert body["language"] == "javascript"
+    assert body["symbols"][0]["name"] == "start"
+
+
+def test_parse_rejects_unknown_extension():
+
+    response = client.post(
+        "/parse",
+        json={
+            "file_path": "main.rb",
+            "source_code": "puts 'hi'\n"
+        }
+    )
+
+    assert response.status_code == 400
+
+
+def test_parse_rejects_unknown_language():
+
+    response = client.post(
+        "/parse",
+        json={
+            "file_path": "main.py",
+            "language": "cobol",
+            "source_code": ""
+        }
+    )
+
+    assert response.status_code == 400
