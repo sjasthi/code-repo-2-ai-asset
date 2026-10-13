@@ -5,6 +5,10 @@ from app.parser.python_symbols import PythonSymbolExtractor
 from app.parser.javascript_symbols import JavaScriptSymbolExtractor
 from app.parser.typescript_symbols import TypeScriptSymbolExtractor
 from app.database.neo4j import Neo4jConnection
+from app.dependencies.extractor import DependencyExtractor
+from app.dependencies.resolver import ImportResolver
+from app.database.graph_builder import DependencyGraphBuilder
+from app.database.graph_queries import FILE_IMPORTS, FILE_IMPORTED_BY
 
 
 app = FastAPI(
@@ -130,3 +134,93 @@ def get_symbols():
 
     finally:
         database.close()
+
+
+from pathlib import Path
+
+# Set this to the root directory of the code project being analyzed.
+PROJECT_ROOT = Path("sample_code").resolve()
+
+
+@app.post("/dependencies/parse")
+def parse_dependencies(request: CodeRequest, language: str = "python"):
+    extractor = DependencyExtractor()
+
+    dependencies = extractor.extract(
+        request.source_code,
+        request.file_path,
+        language,
+    )
+
+    resolver = ImportResolver(str(PROJECT_ROOT))
+
+    for dependency in dependencies:
+        if dependency["type"] == "import":
+            resolved = resolver.resolve(
+                request.file_path,
+                dependency["target"],
+                language,
+            )
+            dependency["resolved_target"] = resolved
+
+    return {
+        "file": request.file_path,
+        "language": language,
+        "dependencies": dependencies,
+    }
+
+
+@app.get("/dependencies/imports")
+def get_file_imports(file_path: str):
+    return neo4j_connection.execute_query(
+        FILE_IMPORTS,
+        {"file_path": file_path},
+    )
+
+
+@app.get("/dependencies/imported-by")
+def get_file_imported_by(file_path: str):
+    return neo4j_connection.execute_query(
+        FILE_IMPORTED_BY,
+        {"file_path": file_path},
+    )
+
+
+@app.post("/dependencies/analyze")
+def analyze_and_store_dependencies(
+    request: CodeRequest,
+    language: str = "python",
+):
+    extractor = DependencyExtractor()
+
+    dependencies = extractor.extract(
+        request.source_code,
+        request.file_path,
+        language,
+    )
+
+    resolver = ImportResolver(str(PROJECT_ROOT))
+
+    for dependency in dependencies:
+        if dependency["type"] == "import":
+            dependency["resolved_target"] = resolver.resolve(
+                request.file_path,
+                dependency["target"],
+                language,
+            )
+
+    builder = DependencyGraphBuilder(neo4j_connection)
+
+    stored_count = builder.store_dependencies(
+        request.file_path,
+        language,
+        dependencies,
+    )
+
+    return {
+        "file": request.file_path,
+        "language": language,
+        "dependencies_found": len(dependencies),
+        "relationships_stored": stored_count,
+        "dependencies": dependencies,
+    }
