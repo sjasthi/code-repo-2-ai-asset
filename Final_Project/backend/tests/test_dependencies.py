@@ -105,3 +105,28 @@ def test_unsupported_language_raises_error():
         assert False, "Expected ValueError"
     except ValueError:
         pass
+
+
+def import_targets(source):
+    dependencies = DependencyExtractor().extract(
+        source, "pkg/sessions.py", "python"
+    )
+
+    return [
+        item["target"] for item in dependencies
+        if item["type"] == "import"
+    ]
+
+
+def test_extract_python_relative_import_keeps_dots():
+
+    assert import_targets("from .models import Request\n") == [".models"]
+    assert import_targets("from ..compat import json\n") == ["..compat"]
+
+
+def test_extract_python_bare_relative_import_records_each_name():
+
+    assert import_targets("from . import utils, hooks\n") == [
+        ".utils",
+        ".hooks",
+    ]

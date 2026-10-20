@@ -39,14 +39,25 @@ class DependencyExtractor:
                     })
 
             elif isinstance(node, ast.ImportFrom):
-                module = node.module or ""
+                # Keep the leading dots of relative imports:
+                # "from ..compat import x" has level 2 and module "compat".
+                dots = "." * node.level
 
-                dependencies.append({
-                    "type": "import",
-                    "source_file": file_path,
-                    "target": module,
-                    "line": node.lineno,
-                })
+                if node.module:
+                    targets = [dots + node.module]
+                else:
+                    # "from . import utils" may import the utils module,
+                    # so record each name; the resolver falls back to the
+                    # package if a name is not a module.
+                    targets = [dots + alias.name for alias in node.names]
+
+                for target in targets:
+                    dependencies.append({
+                        "type": "import",
+                        "source_file": file_path,
+                        "target": target,
+                        "line": node.lineno,
+                    })
 
             elif isinstance(node, ast.Call):
                 if isinstance(node.func, ast.Name):

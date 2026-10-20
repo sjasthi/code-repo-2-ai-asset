@@ -20,46 +20,82 @@ class ImportResolver:
         if not source.is_absolute():
             source = self.project_root / source
 
-        # Do not resolve package names such as "fastapi" or "react".
-        if not import_target.startswith("."):
-            if language.lower() == "python":
-                candidate = self.project_root / (
-                    import_target.replace(".", "/") + ".py"
-                )
-                if candidate.is_file():
-                    return candidate.relative_to(
-                        self.project_root
-                    ).as_posix()
+        if language.lower() == "python":
+            return self._resolve_python(source, import_target)
 
+        # Do not resolve package names such as "react".
+        if not import_target.startswith("."):
             return None
 
         candidate = (source.parent / import_target).resolve()
 
-        # Prevent imports from resolving outside the project root.
-        try:
-            candidate.relative_to(self.project_root)
-        except ValueError:
-            return None
-
         candidates = [candidate]
+        candidates.extend(
+            Path(str(candidate) + ext)
+            for ext in self.JS_EXTENSIONS
+        )
+        candidates.extend(
+            candidate / ("index" + ext)
+            for ext in self.JS_EXTENSIONS
+        )
 
-        if language.lower() in ("javascript", "typescript", "js", "ts"):
-            candidates.extend(
-                Path(str(candidate) + ext)
-                for ext in self.JS_EXTENSIONS
-            )
-            candidates.extend(
-                candidate / ("index" + ext)
-                for ext in self.JS_EXTENSIONS
-            )
+        return self._first_file(candidates)
+
+    def _resolve_python(self, source: Path, import_target: str):
+        """
+        Resolve "pkg.module" from the project root, and relative imports
+        like ".module" (same package) or "..module" (parent package)
+        from the importing file's package.
+        """
+        module = import_target.lstrip(".")
+        level = len(import_target) - len(module)
+
+        if level:
+            base = source.parent
+
+            # One dot is the current package; each extra dot goes up one.
+            for _ in range(level - 1):
+                base = base.parent
         else:
-            candidates.append(Path(str(candidate) + ".py"))
-            candidates.append(candidate / "__init__.py")
+            # Absolute imports of external packages ("fastapi") simply
+            # fail to match a local file below.
+            base = self.project_root
 
+        parts = module.split(".") if module else []
+
+        # "from . import utils" is recorded as ".utils", but utils may be a
+        # function or class defined in the package, not a module. Fall back
+        # to shorter module paths, down to the package itself for relative
+        # imports (an absolute import never resolves to the project root).
+        shortest = 0 if level else 1
+
+        for length in range(len(parts), shortest - 1, -1):
+            candidate = base.joinpath(*parts[:length])
+
+            path = self._first_file([
+                candidate.with_name(candidate.name + ".py") if length else None,
+                candidate / "__init__.py",
+            ])
+
+            if path:
+                return path
+
+        return None
+
+    def _first_file(self, candidates):
         for path in candidates:
+            if path is None:
+                continue
+
+            path = path.resolve()
+
+            # Prevent imports from resolving outside the project root.
+            try:
+                relative = path.relative_to(self.project_root)
+            except ValueError:
+                continue
+
             if path.is_file():
-                return path.relative_to(
-                    self.project_root
-                ).as_posix()
+                return relative.as_posix()
 
         return None
