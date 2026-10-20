@@ -99,17 +99,22 @@ def extract_symbols(
     file_path: str,
     language: str | None = None
 ):
-    """
-    Detect the language and extract symbols with the matching extractor.
-
-    Returns (language, symbols, has_syntax_errors). Tree-sitter recovers
-    from errors, so symbols may still be partial when has_syntax_errors
-    is true, e.g. for a half-edited file or the wrong language.
-    """
     language = detect_language(file_path, language)
     extractor = get_extractor(language)
 
     symbols = extractor.extract_symbols(source_code, file_path)
-    has_syntax_errors = extractor.tree.root_node.has_error
+    tree = getattr(extractor, "tree", None)
 
+    if tree is None:
+        parser = getattr(extractor, "parser", None)
+        parse_method = getattr(parser, "parse", None)
+
+        if callable(parse_method):
+            tree = parse_method(source_code)
+    
+    has_syntax_errors = (
+        tree.root_node.has_error
+        if tree is not None
+        else False
+    )
     return language, symbols, has_syntax_errors
