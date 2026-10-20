@@ -1,4 +1,8 @@
-from fastapi import Depends, FastAPI, HTTPException
+import logging
+from contextlib import asynccontextmanager
+from typing import Literal
+
+from fastapi import Depends, FastAPI, HTTPException, Query
 from pydantic import BaseModel
 from tempfile import TemporaryDirectory
 
@@ -7,6 +11,7 @@ from app.database.neo4j import Neo4jConnection
 from app.dependencies.extractor import DependencyExtractor
 from app.dependencies.resolver import ImportResolver
 from app.database.graph_builder import DependencyGraphBuilder
+from app.database.search import SymbolSearch
 from app.repositories.github_importer import (
     GitHubRepositoryImporter,
     GitHubRepositoryImportError,
@@ -18,24 +23,51 @@ from app.database.graph_queries import (
 )
 
 
-app = FastAPI(
-    title="Code Dependency Graph API",
-    description="Backend for analyzing source code and extracting symbols.",
-    version="0.1.0"
-)
+logger = logging.getLogger(__name__)
+
+
+# One connection shared by all requests. The Neo4j driver pools and
+# reuses sockets; opening a new driver per request cost ~2 s on Windows.
+_database = None
 
 
 def get_database():
     """
-    Open a Neo4j connection for one request and close it afterwards.
+    Return the shared Neo4j connection, creating it on first use.
     """
-    database = Neo4jConnection()
+    global _database
 
+    if _database is None:
+        _database = Neo4jConnection()
+
+    return _database
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global _database
+
+    # Create constraints and search indexes. The API still starts without
+    # Neo4j so /parse works offline; search needs the indexes later.
     try:
-        yield database
+        get_database().initialize_schema()
 
-    finally:
-        database.close()
+    except Exception as error:
+        logger.warning("Could not initialize Neo4j schema: %s", error)
+
+    yield
+
+    if _database is not None:
+        _database.close()
+        _database = None
+
+
+app = FastAPI(
+    title="Code Dependency Graph API",
+    description="Backend for analyzing source code and extracting symbols.",
+    version="0.1.0",
+    lifespan=lifespan,
+)
 
 
 class CodeRequest(BaseModel):
@@ -383,3 +415,148 @@ def import_github_repository(
             ),
             "graph_path_prefix": repository_prefix,
         }
+
+
+SymbolType = Literal["class", "function", "method", "variable"]
+
+
+class SymbolSearchResult(BaseModel):
+    type: str
+    name: str
+    file_path: str
+    line: int
+    score: float
+    match: Literal["exact", "prefix", "contains", "fuzzy"]
+
+
+class SymbolSearchResponse(BaseModel):
+    query: str
+    total: int
+    limit: int
+    offset: int
+    results: list[SymbolSearchResult]
+
+
+class FileSearchResult(BaseModel):
+    path: str
+    language: str | None
+    match: Literal["exact", "prefix", "contains"]
+
+
+class FileSearchResponse(BaseModel):
+    query: str
+    total: int
+    limit: int
+    offset: int
+    results: list[FileSearchResult]
+
+
+def _require_query(q: str) -> str:
+    q = q.strip()
+
+    if not q:
+        raise HTTPException(status_code=400, detail="Search query is empty.")
+
+    return q
+
+
+def _search_symbols(database, q, types, file_path, fuzzy, limit, offset):
+    q = _require_query(q)
+
+    total, results = SymbolSearch(database).search_symbols(
+        q,
+        types=types,
+        file_path=file_path,
+        fuzzy=fuzzy,
+        limit=limit,
+        offset=offset,
+    )
+
+    return {
+        "query": q,
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+        "results": results,
+    }
+
+
+@app.get("/search/symbols", response_model=SymbolSearchResponse)
+def search_symbols(
+    q: str = Query(..., min_length=1, description="Symbol name to search for."),
+    type: list[SymbolType] | None = Query(
+        None,
+        description="Only return these symbol types. Repeat to pass several.",
+    ),
+    file_path: str | None = Query(
+        None,
+        description="Only return symbols defined in this file.",
+    ),
+    fuzzy: bool = Query(True, description="Also match names with typos."),
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    database: Neo4jConnection = Depends(get_database),
+):
+    """
+    Search every stored symbol by name.
+
+    Results are ranked exact match > prefix > contains > fuzzy (typo),
+    then by full-text relevance score.
+    """
+    return _search_symbols(database, q, type, file_path, fuzzy, limit, offset)
+
+
+@app.get("/search/classes", response_model=SymbolSearchResponse)
+def search_classes(
+    q: str = Query(..., min_length=1, description="Class name to search for."),
+    fuzzy: bool = Query(True, description="Also match names with typos."),
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    database: Neo4jConnection = Depends(get_database),
+):
+    """
+    Find classes by name. Same ranking as /search/symbols.
+    """
+    return _search_symbols(database, q, ["class"], None, fuzzy, limit, offset)
+
+
+@app.get("/search/functions", response_model=SymbolSearchResponse)
+def search_functions(
+    q: str = Query(..., min_length=1, description="Function name to search for."),
+    fuzzy: bool = Query(True, description="Also match names with typos."),
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    database: Neo4jConnection = Depends(get_database),
+):
+    """
+    Find functions and methods by name. Same ranking as /search/symbols.
+    """
+    return _search_symbols(
+        database, q, ["function", "method"], None, fuzzy, limit, offset
+    )
+
+
+@app.get("/search/files", response_model=FileSearchResponse)
+def search_files(
+    q: str = Query(..., min_length=1, description="Part of a file path."),
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    database: Neo4jConnection = Depends(get_database),
+):
+    """
+    Find files whose path contains the query (case-insensitive).
+
+    Ranked exact file name > file name prefix > path contains, then
+    shorter paths first.
+    """
+    q = _require_query(q)
+
+    total, results = SymbolSearch(database).search_files(q, limit, offset)
+
+    return {
+        "query": q,
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+        "results": results,
+    }
