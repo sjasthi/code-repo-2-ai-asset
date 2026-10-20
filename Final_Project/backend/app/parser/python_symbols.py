@@ -1,3 +1,4 @@
+
 from .tree_sitter_parser import PythonParser
 
 
@@ -8,8 +9,9 @@ class PythonSymbolExtractor:
     def extract_symbols(self, source_code: str, file_path: str):
         tree = self.parser.parse(source_code)
 
-        # Kept so callers can check tree.root_node.has_error.
+        # Store the parsed tree so the registry can check syntax errors.
         self.tree = tree
+
         source_bytes = source_code.encode("utf-8")
         symbols = []
 
