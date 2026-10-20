@@ -1,3 +1,4 @@
+
 # Symbol type from the parser -> Neo4j node label.
 SYMBOL_LABELS = {
     "class": "Class",
@@ -9,8 +10,8 @@ SYMBOL_LABELS = {
 
 class DependencyGraphBuilder:
     """
-    Stores source files and their import/call relationships in Neo4j.
-    Uses the existing Neo4jConnection from FP4.
+    Stores source files, symbols, and their import/call relationships
+    in Neo4j. Uses the existing Neo4jConnection from FP4.
     """
 
     def __init__(self, neo4j_connection):
@@ -46,11 +47,9 @@ class DependencyGraphBuilder:
     def store_call(self, source_file: str, function_name: str, line: int):
         """
         Record a potential call from a file to a named function.
-
-        The target is marked as an unresolved Function node if its
-        declaration has not been identified. This is an initial
-        representation; later work can resolve calls to declarations.
+        Unresolved calls point to a Function node by name.
         """
+
         query = """
         MERGE (source:File {path: $source_file})
         MERGE (target:Function {name: $function_name})
@@ -68,10 +67,10 @@ class DependencyGraphBuilder:
 
     def clear_stale_symbols(self, file_path: str, symbols: list):
         """
-        Remove a file's stored symbols that are no longer in it (deleted,
-        renamed or moved lines). Unchanged symbols are kept, so edges
-        pointing at them, such as CALLS, survive re-analysis.
+        Remove symbols previously stored for this file that are no longer
+        present in the latest parse.
         """
+
         keep = [
             [SYMBOL_LABELS[symbol["type"]], symbol["name"], symbol["line"]]
             for symbol in symbols
@@ -90,9 +89,14 @@ class DependencyGraphBuilder:
         })
 
     def store_symbol(self, symbol: dict):
+        """
+        Store one symbol and connect it to the file where it is defined.
+        The symbol must contain type, name, file_path, and line.
+        """
+
         label = SYMBOL_LABELS.get(symbol["type"])
 
-        # Skip kinds the schema has no label for yet (e.g. interface).
+        # Skip symbol types not supported by the current graph schema.
         if not label:
             return False
 
@@ -115,6 +119,11 @@ class DependencyGraphBuilder:
         return True
 
     def store_symbols(self, file_path: str, symbols: list):
+        """
+        Remove stale symbols, then store the symbols from the latest parse.
+        Returns the number of symbols stored.
+        """
+
         self.clear_stale_symbols(file_path, symbols)
 
         return sum(
@@ -122,29 +131,32 @@ class DependencyGraphBuilder:
             if self.store_symbol(symbol)
         )
 
-    def store_dependencies(self, file_path: str, language: str,
-                           dependencies: list):
+    def store_dependencies(
+        self,
+        file_path: str,
+        language: str,
+        dependencies: list,
+    ):
+        """
+        Store the file and its resolved import and function-call relationships.
+        """
+
         self.store_file(file_path, language)
 
         stored = 0
 
         for dependency in dependencies:
             if dependency["type"] == "import":
-                target = dependency["target"]
+                target_path = dependency.get("resolved_target")
 
-                # External packages are not local File nodes.
-                # For now, only create IMPORTS edges for relative imports
-                # or Python-style module names resolved by the caller.
-                if target:
-                    target_path = dependency.get("resolved_target")
-
-                    if target_path:
-                        self.store_import(
-                            file_path,
-                            target_path,
-                            dependency["line"],
-                        )
-                        stored += 1
+                # Only create IMPORTS edges for imports resolved to local files.
+                if target_path:
+                    self.store_import(
+                        file_path,
+                        target_path,
+                        dependency["line"],
+                    )
+                    stored += 1
 
             elif dependency["type"] == "call":
                 self.store_call(
