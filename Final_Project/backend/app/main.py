@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 from typing import Literal
 
 from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from tempfile import TemporaryDirectory
 
@@ -67,6 +68,18 @@ app = FastAPI(
     description="Backend for analyzing source code and extracting symbols.",
     version="0.1.0",
     lifespan=lifespan,
+)
+
+
+# Allow the React dev server (Vite) to call this API from the browser.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ],
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 
