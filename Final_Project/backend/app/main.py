@@ -13,6 +13,7 @@ from app.dependencies.extractor import DependencyExtractor
 from app.dependencies.resolver import ImportResolver
 from app.database.graph_builder import DependencyGraphBuilder
 from app.database.search import SymbolSearch
+from app.database.graph_view import GraphView
 from app.repositories.github_importer import (
     GitHubRepositoryImporter,
     GitHubRepositoryImportError,
@@ -573,3 +574,88 @@ def search_files(
         "offset": offset,
         "results": results,
     }
+
+
+# ---------- FP8: graph visualization ----------
+
+
+class GraphProject(BaseModel):
+    id: str
+    label: str
+    files: int
+
+
+class GraphNode(BaseModel):
+    id: str
+    type: Literal[
+        "file", "class", "function", "method", "variable", "external"
+    ]
+    label: str
+    path: str | None = None
+    language: str | None = None
+    line: int | None = None
+
+
+class GraphEdge(BaseModel):
+    id: str
+    source: str
+    target: str
+    type: Literal["imports", "contains", "calls"]
+    line: int | None = None
+    count: int | None = None
+
+
+class GraphResponse(BaseModel):
+    nodes: list[GraphNode]
+    edges: list[GraphEdge]
+    files: int
+    total_files: int | None
+    truncated: bool
+
+
+@app.get("/graph/projects", response_model=list[GraphProject])
+def graph_projects(database: Neo4jConnection = Depends(get_database)):
+    """
+    List what can be graphed: each imported GitHub repository, plus
+    "uploads" for files added on the Upload page.
+    """
+    return GraphView(database).projects()
+
+
+@app.get("/graph", response_model=GraphResponse)
+def get_graph(
+    project: str | None = Query(
+        None,
+        description='A project id from /graph/projects, or omit for every file.',
+    ),
+    file: str | None = Query(
+        None,
+        description="Center the graph on this file. Overrides project.",
+    ),
+    depth: int = Query(
+        1, ge=1, le=3,
+        description="With file: how many import hops to include.",
+    ),
+    include_symbols: bool = Query(
+        False, description="Add classes, functions, methods and variables."
+    ),
+    include_calls: bool = Query(
+        False, description="Add function-call edges."
+    ),
+    limit: int = Query(500, ge=1, le=5000, description="Maximum files."),
+    database: Neo4jConnection = Depends(get_database),
+):
+    """
+    Nodes and edges for the dependency graph view.
+
+    Files are always included, linked by IMPORTS edges. Symbols (CONTAINS)
+    and calls (CALLS) are optional because they multiply the node count.
+    """
+    return GraphView(database).graph(
+        project=project,
+        file=file,
+        depth=depth,
+        include_symbols=include_symbols,
+        include_calls=include_calls,
+        limit=limit,
+    )

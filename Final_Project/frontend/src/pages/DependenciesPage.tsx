@@ -90,6 +90,14 @@ export default function DependenciesPage() {
       {error && <ErrorMessage message={error} />}
 
       {data && (
+        <p className="muted">
+          <Link to={`/graph?file=${encodeURIComponent(file)}&depth=2`}>
+            View {file} in the graph
+          </Link>
+        </p>
+      )}
+
+      {data && (
         <div className="columns">
           <section>
             <h2>Imports ({data.imports.length})</h2>

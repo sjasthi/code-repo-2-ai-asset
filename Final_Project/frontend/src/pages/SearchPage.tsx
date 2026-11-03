@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from "react";
+import { Link } from "react-router-dom";
 import { api, ApiError } from "../api/client";
 import type {
   FileSearchResult,
@@ -135,6 +136,7 @@ export default function SearchPage() {
                     <th>File</th>
                     <th>Line</th>
                     <th>Match</th>
+                    <th><span className="visually-hidden">Graph</span></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -147,6 +149,14 @@ export default function SearchPage() {
                       </td>
                       <td>{symbol.line}</td>
                       <td>{symbol.match}</td>
+                      <td>
+                        <Link
+                          to={`/graph?file=${encodeURIComponent(symbol.file_path)}&symbols=1&q=${encodeURIComponent(symbol.name)}`}
+                          aria-label={`Show ${symbol.name} in the graph`}
+                        >
+                          Graph
+                        </Link>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -162,6 +172,7 @@ export default function SearchPage() {
                     <th>File</th>
                     <th>Language</th>
                     <th>Match</th>
+                    <th><span className="visually-hidden">Graph</span></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -172,6 +183,14 @@ export default function SearchPage() {
                       </td>
                       <td>{file.language ?? "–"}</td>
                       <td>{file.match}</td>
+                      <td>
+                        <Link
+                          to={`/graph?file=${encodeURIComponent(file.path)}&depth=2`}
+                          aria-label={`Show ${file.path} in the graph`}
+                        >
+                          Graph
+                        </Link>
+                      </td>
                     </tr>
                   ))}
                 </tbody>

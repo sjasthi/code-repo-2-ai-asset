@@ -66,3 +66,57 @@ export interface Neo4jHealth {
   status: string;
   neo4j: string;
 }
+
+// FP8 graph view (GET /graph, GET /graph/projects).
+
+export type GraphNodeType =
+  | "file"
+  | "class"
+  | "function"
+  | "method"
+  | "variable"
+  | "external";
+
+export type GraphEdgeType = "imports" | "contains" | "calls";
+
+export interface GraphNode {
+  id: string;
+  type: GraphNodeType;
+  label: string;
+  path?: string | null;
+  language?: string | null;
+  line?: number | null;
+}
+
+export interface GraphEdge {
+  id: string;
+  source: string;
+  target: string;
+  type: GraphEdgeType;
+  line?: number | null;
+  count?: number | null;
+}
+
+export interface GraphResponse {
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+  files: number;
+  // null when centred on a file and cut off: "more than `files`".
+  total_files: number | null;
+  truncated: boolean;
+}
+
+export interface GraphProject {
+  id: string;
+  label: string;
+  files: number;
+}
+
+export interface GraphOptions {
+  project?: string;
+  file?: string;
+  depth?: number;
+  includeSymbols?: boolean;
+  includeCalls?: boolean;
+  limit?: number;
+}

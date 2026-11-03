@@ -1,0 +1,391 @@
+import { useDeferredValue, useEffect, useMemo, useState, type FormEvent } from "react";
+import { Link, useSearchParams } from "react-router-dom";
+import { api, ApiError } from "../api/client";
+import type { GraphNode, GraphNodeType, GraphProject, GraphResponse } from "../api/types";
+import ErrorMessage from "../components/ErrorMessage";
+import GraphCanvas from "../components/GraphCanvas";
+import {
+  describeNode,
+  LARGE_GRAPH_NODES,
+  LAYOUTS,
+  NODE_LOOK,
+  NODE_TYPES,
+  toElements,
+  type LayoutName,
+} from "../graph/model";
+
+// Files per request; symbols and calls come on top of this.
+const FILE_LIMIT = 1000;
+
+const TYPE_NAME: Record<GraphNodeType, string> = {
+  file: "File",
+  class: "Class",
+  function: "Function",
+  method: "Method",
+  variable: "Variable",
+  external: "Unresolved call",
+};
+
+export default function GraphPage() {
+  const [params, setParams] = useSearchParams();
+  const project = params.get("project") ?? "";
+  const file = params.get("file") ?? "";
+  const depth = Number(params.get("depth") ?? 1) || 1;
+  const includeSymbols = params.get("symbols") === "1";
+  const includeCalls = params.get("calls") === "1";
+
+  const [projects, setProjects] = useState<GraphProject[]>([]);
+  const [graph, setGraph] = useState<GraphResponse | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const [fileInput, setFileInput] = useState(file);
+  const [layout, setLayout] = useState<LayoutName>("auto");
+  const [hiddenTypes, setHiddenTypes] = useState<GraphNodeType[]>([]);
+  const [search, setSearch] = useState(params.get("q") ?? "");
+  const [matchCount, setMatchCount] = useState(0);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  // Typing stays responsive on big graphs; the highlight catches up.
+  const deferredSearch = useDeferredValue(search);
+
+  function updateParams(patch: Record<string, string | null>) {
+    const next = new URLSearchParams(params);
+    for (const [key, value] of Object.entries(patch)) {
+      if (value) next.set(key, value);
+      else next.delete(key);
+    }
+    setParams(next);
+  }
+
+  useEffect(() => {
+    api.graphProjects().then(setProjects).catch(() => setProjects([]));
+  }, []);
+
+  useEffect(() => {
+    setFileInput(file);
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+
+    api
+      .graph({ project, file, depth, includeSymbols, includeCalls, limit: FILE_LIMIT })
+      .then((response) => {
+        if (cancelled) return;
+        setGraph(response);
+        setSelectedId(file ? `file:${file}` : null);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setGraph(null);
+        setError(err instanceof ApiError ? err.message : String(err));
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [project, file, depth, includeSymbols, includeCalls]);
+
+  const elements = useMemo(() => (graph ? toElements(graph) : []), [graph]);
+  const details = useMemo(
+    () => (graph && selectedId ? describeNode(graph, selectedId) : null),
+    [graph, selectedId],
+  );
+  const presentTypes = useMemo(
+    () => new Set(graph?.nodes.map((node) => node.type) ?? []),
+    [graph],
+  );
+
+  function onCenter(event: FormEvent) {
+    event.preventDefault();
+    updateParams({ file: fileInput.trim() || null });
+  }
+
+  function toggleType(type: GraphNodeType) {
+    setHiddenTypes((current) =>
+      current.includes(type) ? current.filter((t) => t !== type) : [...current, type],
+    );
+  }
+
+  const nodeCount = graph?.nodes.length ?? 0;
+
+  return (
+    <>
+      <h1>Dependency graph</h1>
+      <p className="lead">
+        Explore how files import each other. Click a node to highlight what it
+        depends on and what depends on it.
+      </p>
+
+      <div className="graph-controls">
+        <label className="field">
+          <span className="field-label">Show</span>
+          <select
+            value={project}
+            disabled={Boolean(file)}
+            onChange={(event) => updateParams({ project: event.target.value || null })}
+          >
+            <option value="">All files</option>
+            {projects.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.label} ({p.files} {p.files === 1 ? "file" : "files"})
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <form className="field graph-center" onSubmit={onCenter}>
+          <span className="field-label">Center on file</span>
+          <div className="search-row">
+            <input
+              type="text"
+              aria-label="Center on file"
+              placeholder="dependency_app.py"
+              value={fileInput}
+              onChange={(event) => setFileInput(event.target.value)}
+            />
+            <select
+              aria-label="Import hops"
+              value={depth}
+              onChange={(event) => updateParams({ depth: event.target.value })}
+            >
+              <option value={1}>1 hop</option>
+              <option value={2}>2 hops</option>
+              <option value={3}>3 hops</option>
+            </select>
+            <button type="submit" className="button button--secondary" disabled={!fileInput.trim()}>
+              Center
+            </button>
+            {file && (
+              <button
+                type="button"
+                className="button button--secondary"
+                onClick={() => updateParams({ file: null })}
+              >
+                Show all
+              </button>
+            )}
+          </div>
+        </form>
+
+        <label className="field">
+          <span className="field-label">Layout</span>
+          <select value={layout} onChange={(event) => setLayout(event.target.value as LayoutName)}>
+            {LAYOUTS.map((option) => (
+              <option key={option.name} value={option.name}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="field">
+          <span className="field-label">Highlight</span>
+          <input
+            type="search"
+            aria-label="Highlight nodes"
+            placeholder="Name or path"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+          />
+        </label>
+      </div>
+
+      <fieldset className="filters graph-filters">
+        <legend>Include</legend>
+        <label className="check">
+          <input
+            type="checkbox"
+            checked={includeSymbols}
+            onChange={(event) => updateParams({ symbols: event.target.checked ? "1" : null })}
+          />
+          Classes, functions &amp; variables
+        </label>
+        <label className="check">
+          <input
+            type="checkbox"
+            checked={includeCalls}
+            onChange={(event) => updateParams({ calls: event.target.checked ? "1" : null })}
+          />
+          Function calls
+        </label>
+      </fieldset>
+
+      {presentTypes.size > 1 && (
+        <fieldset className="filters graph-filters">
+          <legend>Show types</legend>
+          {NODE_TYPES.filter(({ type }) => presentTypes.has(type)).map(({ type, label }) => (
+            <label key={type} className="check">
+              <input
+                type="checkbox"
+                checked={!hiddenTypes.includes(type)}
+                onChange={() => toggleType(type)}
+              />
+              <span
+                className={`swatch swatch--${NODE_LOOK[type].shape}`}
+                style={{ ["--swatch" as string]: NODE_LOOK[type].color }}
+                aria-hidden="true"
+              />
+              {label}
+            </label>
+          ))}
+        </fieldset>
+      )}
+
+      {error && <ErrorMessage message={error} />}
+
+      {graph && (
+        <p className="muted graph-status" aria-live="polite">
+          {loading ? "Loading… " : ""}
+          {graph.files} {graph.files === 1 ? "file" : "files"}, {nodeCount} nodes,{" "}
+          {graph.edges.length} links.
+          {graph.truncated &&
+            ` Showing the first ${graph.files} of ${graph.total_files ?? "more"} files; pick a project or center on a file to see the rest.`}
+          {nodeCount > LARGE_GRAPH_NODES && " Large graph: labels appear as you zoom in."}
+          {deferredSearch.trim() &&
+            ` ${matchCount} ${matchCount === 1 ? "match" : "matches"} for “${deferredSearch.trim()}”.`}
+        </p>
+      )}
+      {!graph && loading && <p className="muted">Loading graph…</p>}
+
+      {graph && nodeCount === 0 && (
+        <p className="muted">
+          {file
+            ? `No stored file at “${file}”. Check the path, or `
+            : "Nothing to show yet. "}
+          <Link to="/upload">Add code on the Upload page</Link>.
+        </p>
+      )}
+
+      {graph && nodeCount > 0 && (
+        <div className="graph-layout">
+          <GraphCanvas
+            elements={elements}
+            layout={layout}
+            hiddenTypes={hiddenTypes}
+            search={deferredSearch}
+            selectedId={selectedId}
+            onSelect={setSelectedId}
+            onMatchCount={setMatchCount}
+          />
+
+          <aside className="graph-panel" aria-label="Selected node">
+            {details ? (
+              <NodePanel
+                details={details}
+                onSelect={setSelectedId}
+                onCenter={(path) => updateParams({ file: path })}
+              />
+            ) : (
+              <>
+                <h2>Details</h2>
+                <p className="muted">
+                  Click a node to see what it imports and what imports it.
+                  Scroll to zoom, drag to pan.
+                </p>
+                <ul className="graph-legend">
+                  <li><span className="legend-line legend-line--imports" /> imports</li>
+                  <li><span className="legend-line legend-line--contains" /> defines (contains)</li>
+                  <li><span className="legend-line legend-line--calls" /> calls</li>
+                </ul>
+              </>
+            )}
+          </aside>
+        </div>
+      )}
+    </>
+  );
+}
+
+function NodePanel({
+  details,
+  onSelect,
+  onCenter,
+}: {
+  details: NonNullable<ReturnType<typeof describeNode>>;
+  onSelect: (id: string) => void;
+  onCenter: (path: string) => void;
+}) {
+  const { node } = details;
+  const isFile = node.type === "file";
+  const filePath = isFile ? node.path : details.definedIn?.path ?? node.path;
+
+  return (
+    <>
+      <h2 className="graph-panel-title">{node.label}</h2>
+      <p className="graph-panel-meta">
+        <span className="tag">{TYPE_NAME[node.type]}</span>
+        {node.language && <span className="tag">{node.language}</span>}
+        {node.line != null && <span className="muted">line {node.line}</span>}
+      </p>
+      {node.path && <p className="path graph-panel-path">{node.path}</p>}
+
+      <div className="actions graph-panel-actions">
+        {filePath && (
+          <button type="button" className="button button--secondary" onClick={() => onCenter(filePath)}>
+            Center graph here
+          </button>
+        )}
+        {isFile && node.path && (
+          <Link
+            className="button button--secondary"
+            to={`/dependencies?file=${encodeURIComponent(node.path)}`}
+          >
+            Dependency list
+          </Link>
+        )}
+      </div>
+
+      {details.definedIn && <Related title="Defined in" nodes={[details.definedIn]} onSelect={onSelect} />}
+      <Related title="Imports" tone="outgoing" nodes={details.imports} showEmpty={isFile} onSelect={onSelect} />
+      <Related title="Imported by" tone="incoming" nodes={details.importedBy} showEmpty={isFile} onSelect={onSelect} />
+      <Related title="Defines" nodes={details.contains} onSelect={onSelect} />
+      <Related title="Calls" nodes={details.calls} onSelect={onSelect} />
+    </>
+  );
+}
+
+function Related({
+  title,
+  nodes,
+  tone,
+  showEmpty = false,
+  onSelect,
+}: {
+  title: string;
+  nodes: GraphNode[];
+  tone?: "outgoing" | "incoming";
+  showEmpty?: boolean;
+  onSelect: (id: string) => void;
+}) {
+  if (nodes.length === 0 && !showEmpty) return null;
+
+  return (
+    <section className="graph-related">
+      <h3 className={tone ? `graph-related-title graph-related-title--${tone}` : "graph-related-title"}>
+        {title} ({nodes.length})
+      </h3>
+      {nodes.length === 0 ? (
+        <p className="muted">None in this view.</p>
+      ) : (
+        <ul>
+          {nodes.map((other) => (
+            <li key={other.id}>
+              <button
+                type="button"
+                className="graph-node-link"
+                title={other.path ?? other.label}
+                onClick={() => onSelect(other.id)}
+              >
+                {other.label}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}

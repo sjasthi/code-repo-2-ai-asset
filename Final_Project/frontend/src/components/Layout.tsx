@@ -7,6 +7,7 @@ const NAV_ITEMS = [
   { to: "/upload", label: "Upload" },
   { to: "/search", label: "Search" },
   { to: "/dependencies", label: "Dependencies" },
+  { to: "/graph", label: "Graph" },
 ];
 
 const STATE_LABEL: Record<ServiceState, string> = {
@@ -72,7 +73,7 @@ export default function Layout() {
         </div>
       </header>
 
-      <main className="page">
+      <main className={location.pathname === "/graph" ? "page page--wide" : "page"}>
         {/* Keyed by route so navigating away clears a crashed page. */}
         <ErrorBoundary key={location.pathname}>
           <Outlet />

@@ -1,6 +1,9 @@
 import type {
   AnalyzeResponse,
   FileSearchResult,
+  GraphOptions,
+  GraphProject,
+  GraphResponse,
   ImportedFile,
   ImportingFile,
   Neo4jHealth,
@@ -122,6 +125,20 @@ export const api = {
   fileImportedBy: (filePath: string) =>
     request<ImportingFile[]>("/dependencies/imported-by", {
       query: { file_path: filePath },
+    }),
+
+  graphProjects: () => request<GraphProject[]>("/graph/projects"),
+
+  graph: (options: GraphOptions) =>
+    request<GraphResponse>("/graph", {
+      query: {
+        project: options.project || undefined,
+        file: options.file || undefined,
+        depth: options.file ? options.depth : undefined,
+        include_symbols: options.includeSymbols,
+        include_calls: options.includeCalls,
+        limit: options.limit,
+      },
     }),
 };
 

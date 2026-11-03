@@ -222,3 +222,29 @@ continues without them if Neo4j is not running:
 
 Measured on a local Neo4j 2026.09 with 12,000 symbols: 7-17 ms per request.
 
+
+## Graph Endpoints (FP8)
+
+Data for the frontend's interactive graph (`app/database/graph_view.py`).
+
+### GET /graph/projects
+
+What can be graphed: one entry per imported GitHub repository
+(`github.com/owner/repo/`), plus `uploads` for files added on the Upload page.
+
+### GET /graph
+
+Nodes and edges in a flat shape the frontend passes straight to Cytoscape.js.
+
+| Parameter         | Default | Meaning                                                     |
+| ----------------- | ------- | ----------------------------------------------------------- |
+| `project`         | all     | A project id from `/graph/projects`                         |
+| `file`            | –       | Center on this file instead (overrides `project`)           |
+| `depth`           | 1       | With `file`: import hops to include, 1–3                    |
+| `include_symbols` | false   | Add classes, functions, methods, variables (CONTAINS edges) |
+| `include_calls`   | false   | Add function calls (CALLS edges)                            |
+| `limit`           | 500     | Maximum files, 1–5000; symbols and calls come on top        |
+
+The response includes `truncated` and `total_files`, so the UI can say when a
+graph was cut off. Measured on `psf/requests` (37 files, 2,841 nodes with
+symbols and calls): about 70 ms for files only, 540 ms with everything.
