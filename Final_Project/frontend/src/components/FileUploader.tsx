@@ -9,6 +9,8 @@ type ItemStatus = "queued" | "analyzing" | "done" | "error";
 
 interface QueueItem {
   id: string;
+  // Path stored in the graph; includes folders for files that came from a ZIP.
+  path: string;
   file: File;
   language: string | null;
   status: ItemStatus;
@@ -23,12 +25,16 @@ const STATUS_LABEL: Record<ItemStatus, string> = {
   error: "Failed",
 };
 
-function toItem(file: File): QueueItem {
-  const language = detectLanguage(file.name);
+// Folders that hold dependencies or tooling, not the project's own code.
+const SKIPPED_DIRS = /(^|\/)(node_modules|\.git|__pycache__|\.venv|venv|dist|build)\//;
+
+function toItem(file: File, path = file.name): QueueItem {
+  const language = detectLanguage(path);
   const tooLarge = file.size > MAX_FILE_BYTES;
 
   return {
-    id: `${file.name}-${file.size}-${file.lastModified}`,
+    id: `${path}-${file.size}-${file.lastModified}`,
+    path,
     file,
     language,
     status: language && !tooLarge ? "queued" : "error",
@@ -40,21 +46,75 @@ function toItem(file: File): QueueItem {
   };
 }
 
+function isZip(file: File): boolean {
+  return file.name.toLowerCase().endsWith(".zip");
+}
+
+// Unpacks the supported source files in a ZIP, keeping their folder paths.
+export async function itemsFromZip(
+  zipFile: File,
+): Promise<{ items: QueueItem[]; skipped: number }> {
+  // Loaded on demand so the main bundle stays small.
+  const { default: JSZip } = await import("jszip");
+  const zip = await JSZip.loadAsync(zipFile);
+  const items: QueueItem[] = [];
+  let skipped = 0;
+
+  for (const entry of Object.values(zip.files)) {
+    if (entry.dir) continue;
+    if (!detectLanguage(entry.name) || SKIPPED_DIRS.test(entry.name)) {
+      skipped += 1;
+      continue;
+    }
+
+    const blob = await entry.async("blob");
+    const file = new File([blob], entry.name.split("/").pop() ?? entry.name, {
+      lastModified: entry.date.getTime(),
+    });
+    items.push(toItem(file, entry.name));
+  }
+
+  return { items, skipped };
+}
+
 export default function FileUploader() {
   const inputRef = useRef<HTMLInputElement>(null);
   const [items, setItems] = useState<QueueItem[]>([]);
   const [dragging, setDragging] = useState(false);
   const [running, setRunning] = useState(false);
+  const [unpacking, setUnpacking] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
 
-  function addFiles(fileList: FileList | null) {
+  async function addFiles(fileList: FileList | null) {
     if (!fileList) return;
 
+    const files = Array.from(fileList);
+    const added = files.filter((file) => !isZip(file)).map((file) => toItem(file));
+    const messages: string[] = [];
+
+    const zips = files.filter(isZip);
+    if (zips.length > 0) {
+      setUnpacking(true);
+      for (const zipFile of zips) {
+        try {
+          const { items: zipItems, skipped } = await itemsFromZip(zipFile);
+          added.push(...zipItems);
+          messages.push(
+            `${zipFile.name}: ${zipItems.length} source ${
+              zipItems.length === 1 ? "file" : "files"
+            } added` + (skipped ? `, ${skipped} other files skipped.` : "."),
+          );
+        } catch {
+          messages.push(`${zipFile.name} could not be read as a ZIP archive.`);
+        }
+      }
+      setUnpacking(false);
+    }
+
+    setNotice(messages.length ? messages.join(" ") : null);
     setItems((current) => {
       const known = new Set(current.map((item) => item.id));
-      const added = Array.from(fileList)
-        .map(toItem)
-        .filter((item) => !known.has(item.id));
-      return [...current, ...added];
+      return [...current, ...added.filter((item) => !known.has(item.id))];
     });
   }
 
@@ -82,7 +142,7 @@ export default function FileUploader() {
       try {
         const sourceCode = await item.file.text();
         const result = await api.analyzeFile(
-          item.file.name,
+          item.path,
           sourceCode,
           item.language,
         );
@@ -116,20 +176,23 @@ export default function FileUploader() {
         onDrop={onDrop}
       >
         <p className="dropzone-title">Drop source files here</p>
-        <p className="muted">Python, JavaScript, and TypeScript, up to 1 MB each.</p>
+        <p className="muted">
+          Python, JavaScript, and TypeScript, up to 1 MB each, or a ZIP of a project.
+        </p>
         <button
           type="button"
           className="button button--secondary"
+          disabled={unpacking}
           onClick={() => inputRef.current?.click()}
         >
-          Choose files
+          {unpacking ? "Unpacking…" : "Choose files"}
         </button>
         <input
           ref={inputRef}
           type="file"
           multiple
           hidden
-          accept=".py,.pyi,.js,.jsx,.mjs,.cjs,.ts,.mts,.cts"
+          accept=".py,.pyi,.js,.jsx,.mjs,.cjs,.ts,.mts,.cts,.zip"
           onChange={(event) => {
             addFiles(event.target.files);
             event.target.value = ""; // allow re-selecting the same file
@@ -137,13 +200,15 @@ export default function FileUploader() {
         />
       </div>
 
+      {notice && <p className="muted">{notice}</p>}
+
       {items.length > 0 && (
         <>
           <ul className="file-list">
             {items.map((item) => (
               <li key={item.id} className="file-row">
                 <div className="file-row-main">
-                  <span className="path">{item.file.name}</span>
+                  <span className="path">{item.path}</span>
                   {item.language && <span className="tag">{item.language}</span>}
                   <span className={`state state--${item.status}`}>
                     {STATUS_LABEL[item.status]}
@@ -153,7 +218,7 @@ export default function FileUploader() {
                       type="button"
                       className="link-button"
                       onClick={() => remove(item.id)}
-                      aria-label={`Remove ${item.file.name}`}
+                      aria-label={`Remove ${item.path}`}
                     >
                       Remove
                     </button>
@@ -167,7 +232,7 @@ export default function FileUploader() {
                     <summary>
                       {item.result.dependencies_found} dependencies,{" "}
                       {item.result.symbols_stored} symbols stored.{" "}
-                      <FilePathLink path={item.file.name} />
+                      <FilePathLink path={item.path} />
                     </summary>
                     {item.result.dependencies.length === 0 ? (
                       <p className="muted">No dependencies found in this file.</p>

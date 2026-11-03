@@ -1,6 +1,7 @@
-import { NavLink, Outlet } from "react-router-dom";
+import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { API_URL } from "../api/client";
 import { useApiStatus, type ServiceState } from "../hooks/useApiStatus";
+import ErrorBoundary from "./ErrorBoundary";
 
 const NAV_ITEMS = [
   { to: "/upload", label: "Upload" },
@@ -33,6 +34,7 @@ function StatusDot({
 
 export default function Layout() {
   const status = useApiStatus();
+  const location = useLocation();
 
   return (
     <div className="shell">
@@ -71,7 +73,10 @@ export default function Layout() {
       </header>
 
       <main className="page">
-        <Outlet />
+        {/* Keyed by route so navigating away clears a crashed page. */}
+        <ErrorBoundary key={location.pathname}>
+          <Outlet />
+        </ErrorBoundary>
       </main>
     </div>
   );

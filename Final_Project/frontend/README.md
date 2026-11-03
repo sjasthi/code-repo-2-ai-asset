@@ -15,13 +15,15 @@ React + TypeScript (Vite) UI for the FastAPI backend.
 
    Open http://localhost:5173.
 
+Run the component tests with `npm test` (Vitest + React Testing Library).
+
 The backend URL is read from `VITE_API_URL` (see `.env.example`, default `http://localhost:8000`).
 
 ## Pages
 
 | Route           | What it does                                              | Backend endpoints                                    |
 | --------------- | --------------------------------------------------------- | ---------------------------------------------------- |
-| `/upload`       | Upload source files, or import a GitHub repository        | `POST /dependencies/analyze`, `POST /repositories/import` |
+| `/upload`       | Upload source files or a ZIP, or import a GitHub repository | `POST /dependencies/analyze`, `POST /repositories/import` |
 | `/search`       | Search symbols or files                                   | `GET /search/symbols`, `GET /search/files`           |
 | `/dependencies` | Show what a file imports and which files import it        | `GET /dependencies/imports`, `GET /dependencies/imported-by` |
 
