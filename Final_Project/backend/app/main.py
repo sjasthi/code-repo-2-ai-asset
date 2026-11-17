@@ -12,7 +12,7 @@ from app.database.neo4j import Neo4jConnection
 from app.dependencies.extractor import DependencyExtractor
 from app.dependencies.resolver import ImportResolver
 from app.database.graph_builder import DependencyGraphBuilder
-from app.database.search import SymbolSearch
+from app.database.search import SymbolSearch, DependencySearch
 from app.database.graph_view import GraphView
 from app.repositories.github_importer import (
     GitHubRepositoryImporter,
@@ -548,6 +548,43 @@ def search_functions(
     return _search_symbols(
         database, q, ["function", "method"], None, fuzzy, limit, offset
     )
+
+
+class DependencySearchResponse(BaseModel):
+    query: str
+    target_type: str
+    name: str
+    file_path: str
+    imports: list[str]
+    imported_by: list[str]
+    calls: list[dict]
+    called_by: list[dict]
+    call_matching: str
+
+
+@app.get("/search/dependencies", response_model=DependencySearchResponse)
+def search_dependencies(
+    q: str = Query(..., min_length=1, description="Exact file or symbol name."),
+    target: Literal["file", "symbol"] = Query(..., description="Search target kind."),
+    file_path: str | None = Query(None, description="Required for symbol lookups."),
+    type: SymbolType | None = Query(None, description="Symbol type when target=symbol."),
+    database: Neo4jConnection = Depends(get_database),
+):
+    """Show direct imports/importers or files that call a selected symbol."""
+    q = _require_query(q)
+    lookup = DependencySearch(database)
+
+    if target == "file":
+        result = lookup.search_file(q)
+    else:
+        if not file_path:
+            raise HTTPException(status_code=400, detail="file_path is required for symbol dependency search.")
+        result = lookup.search_symbol(q, file_path, type or "function")
+
+    if result is None:
+        raise HTTPException(status_code=404, detail="No matching file or symbol was found in the dependency graph.")
+
+    return {"query": q, **result}
 
 
 @app.get("/search/files", response_model=FileSearchResponse)
