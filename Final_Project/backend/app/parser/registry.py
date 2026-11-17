@@ -46,6 +46,7 @@ EXTENSIONS = {
     ".mjs": "javascript",
     ".cjs": "javascript",
     ".ts": "typescript",
+    ".tsx": "typescript",
     ".mts": "typescript",
     ".cts": "typescript",
     ".go": "go",
