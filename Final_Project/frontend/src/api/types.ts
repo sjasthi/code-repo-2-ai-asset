@@ -120,3 +120,14 @@ export interface GraphOptions {
   includeCalls?: boolean;
   limit?: number;
 }
+export interface DependencySearchResponse {
+  query: string;
+  target_type: string;
+  name: string;
+  file_path: string;
+  imports: string[];
+  imported_by: string[];
+  calls: { name: string; line: number | null }[];
+  called_by: { file_path: string; line: number | null }[];
+  call_matching: string;
+}
