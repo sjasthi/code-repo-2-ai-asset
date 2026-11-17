@@ -1,186 +1,211 @@
-import re
+import { useState, type FormEvent } from "react";
+import { Link } from "react-router-dom";
+import { api, ApiError } from "../api/client";
+import type { DependencySearchResponse, FileSearchResult } from "../api/types";
+import ErrorMessage from "../components/ErrorMessage";
+import FilePathLink from "../components/FilePathLink";
 
+export default function DependenciesPage() {
+  const [query, setQuery] = useState("");
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const [searched, setSearched] = useState(false);
+  const [files, setFiles] = useState<FileSearchResult[]>([]);
+  const [total, setTotal] = useState(0);
 
-SYMBOL_FULLTEXT_INDEX = "symbol_name_fulltext"
+  const [selectedFile, setSelectedFile] = useState<string | null>(null);
+  const [dependencyLoading, setDependencyLoading] = useState(false);
+  const [dependencyError, setDependencyError] = useState<string | null>(null);
+  const [dependencies, setDependencies] = useState<DependencySearchResponse | null>(null);
 
-# Search "type" filter -> Neo4j labels.
-SYMBOL_TYPE_LABELS = {
-    "class": ["Class"],
-    "function": ["Function"],
-    "method": ["Method"],
-    "variable": ["Variable"],
+  async function onSubmit(event: FormEvent) {
+    event.preventDefault();
+    const q = query.trim();
+    if (!q) return;
+
+    setSearchLoading(true);
+    setSearchError(null);
+    setSearched(false);
+    setFiles([]);
+    setTotal(0);
+    setSelectedFile(null);
+    setDependencies(null);
+    setDependencyError(null);
+
+    try {
+      const response = await api.searchFiles(q);
+      setFiles(response.results);
+      setTotal(response.total);
+      setSearched(true);
+    } catch (err) {
+      setSearchError(err instanceof ApiError ? err.message : String(err));
+    } finally {
+      setSearchLoading(false);
+    }
+  }
+
+  async function showDependencies(path: string) {
+    setSelectedFile(path);
+    setDependencies(null);
+    setDependencyError(null);
+    setDependencyLoading(true);
+
+    try {
+      const result = await api.searchDependencies({ query: path, target: "file" });
+      setDependencies(result);
+    } catch (err) {
+      setDependencyError(err instanceof ApiError ? err.message : String(err));
+    } finally {
+      setDependencyLoading(false);
+    }
+  }
+
+  return (
+    <>
+      <h1>Dependencies</h1>
+      <p className="lead">
+        Search for a file by its name or part of its path, then see what it imports
+        and which files depend on it.
+      </p>
+
+      <form className="form" onSubmit={onSubmit}>
+        <div className="search-row">
+          <input
+            type="search"
+            aria-label="Search files"
+            placeholder="Search files, e.g. main.py or backend/app"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+          />
+          <button type="submit" className="button" disabled={searchLoading || !query.trim()}>
+            {searchLoading ? "Searching…" : "Search files"}
+          </button>
+        </div>
+      </form>
+
+      {searchError && <ErrorMessage message={searchError} />}
+
+      {searched && (
+        <section aria-live="polite">
+          <p className="muted">
+            {total === 0
+              ? `No files found matching “${query.trim()}”. Check the spelling or import a repository first.`
+              : `Found ${total} file${total === 1 ? "" : "s"}. Select a file to inspect its dependencies.`}
+          </p>
+
+          {files.length > 0 && (
+            <div className="table-wrap">
+              <table className="table">
+                <thead>
+                  <tr><th>File</th><th>Language</th><th>Match</th><th>Action</th></tr>
+                </thead>
+                <tbody>
+                  {files.map((file) => (
+                    <tr key={file.path}>
+                      <td><FilePathLink path={file.path} /></td>
+                      <td>{file.language ?? "–"}</td>
+                      <td>{file.match}</td>
+                      <td>
+                        <button
+                          type="button"
+                          className="button button--secondary"
+                          disabled={dependencyLoading && selectedFile === file.path}
+                          onClick={() => showDependencies(file.path)}
+                        >
+                          {dependencyLoading && selectedFile === file.path
+                            ? "Loading…"
+                            : "Show dependencies"}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      )}
+
+      {selectedFile && (
+        <section className="dependency-results" aria-live="polite">
+          <div className="section-heading">
+            <h2>Dependencies: {selectedFile}</h2>
+            <button
+              type="button"
+              className="button button--secondary"
+              onClick={() => {
+                setSelectedFile(null);
+                setDependencies(null);
+                setDependencyError(null);
+              }}
+            >
+              Close
+            </button>
+          </div>
+
+          {dependencyLoading && <p className="muted">Loading dependencies…</p>}
+          {dependencyError && <ErrorMessage message={dependencyError} />}
+
+          {dependencies && (
+            <>
+              <div className="dependency-columns">
+                <DependencyList
+                  title={`Imports (${dependencies.imports.length})`}
+                  paths={dependencies.imports}
+                  empty="This file does not import any stored project files."
+                />
+                <DependencyList
+                  title={`Imported by (${dependencies.imported_by.length})`}
+                  paths={dependencies.imported_by}
+                  empty="No stored project files import this file."
+                />
+                <section>
+                  <h3>Functions called ({dependencies.calls.length})</h3>
+                  {dependencies.calls.length === 0 ? (
+                    <p className="muted">No stored function calls from this file.</p>
+                  ) : (
+                    <ul>
+                      {dependencies.calls.map((call, index) => (
+                        <li key={`${call.name}:${call.line}:${index}`}>
+                          {call.name}{call.line != null ? ` (line ${call.line})` : ""}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </section>
+              </div>
+              <p>
+                <Link to={`/graph?file=${encodeURIComponent(dependencies.file_path)}&depth=2&symbols=1&calls=1`}>
+                  Open this file in the dependency graph
+                </Link>
+              </p>
+            </>
+          )}
+        </section>
+      )}
+    </>
+  );
 }
 
-LABEL_TO_TYPE = {
-    "Class": "class",
-    "Function": "function",
-    "Method": "method",
-    "Variable": "variable",
+function DependencyList({
+  title,
+  paths,
+  empty,
+}: {
+  title: string;
+  paths: string[];
+  empty: string;
+}) {
+  return (
+    <section>
+      <h3>{title}</h3>
+      {paths.length === 0 ? (
+        <p className="muted">{empty}</p>
+      ) : (
+        <ul className="path-list">
+          {paths.map((path) => <li key={path}><FilePathLink path={path} /></li>)}
+        </ul>
+      )}
+    </section>
+  );
 }
-
-# Ranking tiers, best first.
-MATCH_TIERS = {
-    3: "exact",
-    2: "prefix",
-    1: "contains",
-    0: "fuzzy",
-}
-
-# Characters with special meaning in Lucene query syntax.
-LUCENE_SPECIAL = re.compile(r'([+\-&|!(){}\[\]^"~*?:\\/])')
-
-
-def escape_lucene(term: str) -> str:
-    return LUCENE_SPECIAL.sub(r"\\\1", term)
-
-
-def build_lucene_query(query: str, fuzzy: bool = True) -> str:
-    """
-    Turn a user query into a Lucene query that finds exact, prefix,
-    substring and (optionally) typo-tolerant matches.
-
-    Multiple words must all match, e.g. "user serv" finds UserService
-    only if both words match. Wildcard and fuzzy terms skip the
-    analyzer, so terms are lowercased here to match the indexed tokens.
-    """
-    groups = []
-
-    for word in query.lower().split():
-        term = escape_lucene(word)
-
-        clauses = [f"{term}^4", f"{term}*^2", f"*{term}*"]
-
-        if fuzzy:
-            # Short names drift into unrelated names at edit distance 2.
-            distance = 1 if len(word) <= 4 else 2
-            clauses.append(f"{term}~{distance}")
-
-        groups.append("(" + " OR ".join(clauses) + ")")
-
-    return " AND ".join(groups)
-
-
-SEARCH_SYMBOLS = """
-CALL db.index.fulltext.queryNodes($index, $lucene) YIELD node, score
-WITH node, score, labels(node)[0] AS label, toLower(node.name) AS name
-// Skip placeholder Function nodes created for unresolved CALLS.
-WHERE node.file_path IS NOT NULL
-  AND ($labels IS NULL OR label IN $labels)
-  AND ($file_path IS NULL OR node.file_path = $file_path)
-WITH node, score, label,
-     CASE
-         WHEN name = $term THEN 3
-         WHEN name STARTS WITH $term THEN 2
-         WHEN name CONTAINS $term THEN 1
-         ELSE 0
-     END AS tier
-ORDER BY tier DESC, score DESC, node.name, node.file_path, node.line
-WITH collect({
-    label: label,
-    name: node.name,
-    file_path: node.file_path,
-    line: node.line,
-    score: score,
-    tier: tier
-}) AS matches
-RETURN size(matches) AS total,
-       matches[$offset..($offset + $limit)] AS page
-"""
-
-SEARCH_FILES = """
-MATCH (f:File)
-WHERE toLower(f.path) CONTAINS $term
-WITH f,
-     toLower(f.path) AS path,
-     // File name without its directory, e.g. "main.py" for "app/main.py".
-     toLower(last(split(f.path, "/"))) AS file_name
-WITH f,
-     CASE
-         WHEN path = $term OR file_name = $term THEN 3
-         WHEN file_name STARTS WITH $term THEN 2
-         ELSE 1
-     END AS tier
-ORDER BY tier DESC, size(f.path), f.path
-WITH collect({
-    path: f.path,
-    language: f.language,
-    tier: tier
-}) AS matches
-RETURN size(matches) AS total,
-       matches[$offset..($offset + $limit)] AS page
-"""
-
-
-class SymbolSearch:
-    """
-    Ranked symbol and file search over the dependency graph.
-    """
-
-    def __init__(self, neo4j_connection):
-        self.db = neo4j_connection
-
-    def search_symbols(
-        self,
-        query: str,
-        types: list | None = None,
-        file_path: str | None = None,
-        fuzzy: bool = True,
-        limit: int = 20,
-        offset: int = 0,
-    ):
-        labels = None
-
-        if types:
-            labels = [
-                label
-                for symbol_type in types
-                for label in SYMBOL_TYPE_LABELS[symbol_type]
-            ]
-
-        rows = self.db.execute_query(SEARCH_SYMBOLS, {
-            "index": SYMBOL_FULLTEXT_INDEX,
-            "lucene": build_lucene_query(query, fuzzy),
-            "term": query.strip().lower(),
-            "labels": labels,
-            "file_path": file_path,
-            "limit": limit,
-            "offset": offset,
-        })
-
-        total, page = self._unpack(rows)
-
-        return total, [
-            {
-                "type": LABEL_TO_TYPE.get(match["label"], match["label"]),
-                "name": match["name"],
-                "file_path": match["file_path"],
-                "line": match["line"],
-                "score": match["score"],
-                "match": MATCH_TIERS[match["tier"]],
-            }
-            for match in page
-        ]
-
-    def search_files(self, query: str, limit: int = 20, offset: int = 0):
-        rows = self.db.execute_query(SEARCH_FILES, {
-            "term": query.strip().lower(),
-            "limit": limit,
-            "offset": offset,
-        })
-
-        total, page = self._unpack(rows)
-
-        return total, [
-            {
-                "path": match["path"],
-                "language": match["language"],
-                "match": MATCH_TIERS[match["tier"]],
-            }
-            for match in page
-        ]
-
-    def _unpack(self, rows):
-        if not rows:
-            return 0, []
-
-        return rows[0]["total"], rows[0]["page"]
