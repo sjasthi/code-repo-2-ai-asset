@@ -1,142 +1,211 @@
-import { useEffect, useState, type FormEvent } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { useState, type FormEvent } from "react";
+import { Link } from "react-router-dom";
 import { api, ApiError } from "../api/client";
+import type { DependencySearchResponse, FileSearchResult } from "../api/types";
 import ErrorMessage from "../components/ErrorMessage";
 import FilePathLink from "../components/FilePathLink";
 
-interface Neighbours {
-  imports: string[];
-  importedBy: string[];
-}
-
 export default function DependenciesPage() {
-  const [params, setParams] = useSearchParams();
-  const file = params.get("file") ?? "";
+  const [query, setQuery] = useState("");
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const [searched, setSearched] = useState(false);
+  const [files, setFiles] = useState<FileSearchResult[]>([]);
+  const [total, setTotal] = useState(0);
 
-  const [input, setInput] = useState(file);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [data, setData] = useState<Neighbours | null>(null);
+  const [selectedFile, setSelectedFile] = useState<string | null>(null);
+  const [dependencyLoading, setDependencyLoading] = useState(false);
+  const [dependencyError, setDependencyError] = useState<string | null>(null);
+  const [dependencies, setDependencies] = useState<DependencySearchResponse | null>(null);
 
-  // The URL is the source of truth, so links from other pages and the
-  // back button both work.
-  useEffect(() => {
-    setInput(file);
-
-    if (!file) {
-      setData(null);
-      setError(null);
-      return;
-    }
-
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
-
-    Promise.all([api.fileImports(file), api.fileImportedBy(file)])
-      .then(([imports, importedBy]) => {
-        if (cancelled) return;
-        setData({
-          imports: imports.map((row) => row.imported_file),
-          importedBy: importedBy.map((row) => row.importing_file),
-        });
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        setData(null);
-        setError(err instanceof ApiError ? err.message : String(err));
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [file]);
-
-  function onSubmit(event: FormEvent) {
+  async function onSubmit(event: FormEvent) {
     event.preventDefault();
-    const path = input.trim();
-    if (path) setParams({ file: path });
+    const q = query.trim();
+    if (!q) return;
+
+    setSearchLoading(true);
+    setSearchError(null);
+    setSearched(false);
+    setFiles([]);
+    setTotal(0);
+    setSelectedFile(null);
+    setDependencies(null);
+    setDependencyError(null);
+
+    try {
+      const response = await api.searchFiles(q);
+      setFiles(response.results);
+      setTotal(response.total);
+      setSearched(true);
+    } catch (err) {
+      setSearchError(err instanceof ApiError ? err.message : String(err));
+    } finally {
+      setSearchLoading(false);
+    }
+  }
+
+  async function showDependencies(path: string) {
+    setSelectedFile(path);
+    setDependencies(null);
+    setDependencyError(null);
+    setDependencyLoading(true);
+
+    try {
+      const result = await api.searchDependencies({ query: path, target: "file" });
+      setDependencies(result);
+    } catch (err) {
+      setDependencyError(err instanceof ApiError ? err.message : String(err));
+    } finally {
+      setDependencyLoading(false);
+    }
   }
 
   return (
     <>
       <h1>Dependencies</h1>
-      <p className="lead">See what a file imports and which files import it.</p>
+      <p className="lead">
+        Search for a file by its name or part of its path, then see what it imports
+        and which files depend on it.
+      </p>
 
       <form className="form" onSubmit={onSubmit}>
         <div className="search-row">
           <input
-            type="text"
-            aria-label="File path"
-            placeholder="example.py"
-            value={input}
-            onChange={(event) => setInput(event.target.value)}
+            type="search"
+            aria-label="Search files"
+            placeholder="Search files, e.g. main.py or backend/app"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
           />
-          <button type="submit" className="button" disabled={loading || !input.trim()}>
-            {loading ? "Loading…" : "Show dependencies"}
+          <button type="submit" className="button" disabled={searchLoading || !query.trim()}>
+            {searchLoading ? "Searching…" : "Search files"}
           </button>
         </div>
       </form>
 
-      {!file && (
-        <p className="muted">
-          Enter a file path exactly as stored, or <Link to="/search">search for a file</Link>.
-        </p>
-      )}
+      {searchError && <ErrorMessage message={searchError} />}
 
-      {error && <ErrorMessage message={error} />}
+      {searched && (
+        <section aria-live="polite">
+          <p className="muted">
+            {total === 0
+              ? `No files found matching “${query.trim()}”. Check the spelling or import a repository first.`
+              : `Found ${total} file${total === 1 ? "" : "s"}. Select a file to inspect its dependencies.`}
+          </p>
 
-      {data && (
-        <p className="muted">
-          <Link to={`/graph?file=${encodeURIComponent(file)}&depth=2`}>
-            View {file} in the graph
-          </Link>
-        </p>
-      )}
-
-      {data && (
-        <div className="columns">
-          <section>
-            <h2>Imports ({data.imports.length})</h2>
-            {data.imports.length === 0 ? (
-              <p className="muted">This file doesn’t import any stored files.</p>
-            ) : (
-              <ul className="path-list">
-                {data.imports.map((path) => (
-                  <li key={path}>
-                    <FilePathLink path={path} />
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
-
-          <section>
-            <h2>Imported by ({data.importedBy.length})</h2>
-            {data.importedBy.length === 0 ? (
-              <p className="muted">No stored file imports this one.</p>
-            ) : (
-              <ul className="path-list">
-                {data.importedBy.map((path) => (
-                  <li key={path}>
-                    <FilePathLink path={path} />
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
-
-          {data.imports.length === 0 && data.importedBy.length === 0 && (
-            <p className="muted columns-note">
-              If you expected results, check that the path matches how the file was
-              stored, and that it was analyzed on the Upload page.
-            </p>
+          {files.length > 0 && (
+            <div className="table-wrap">
+              <table className="table">
+                <thead>
+                  <tr><th>File</th><th>Language</th><th>Match</th><th>Action</th></tr>
+                </thead>
+                <tbody>
+                  {files.map((file) => (
+                    <tr key={file.path}>
+                      <td><FilePathLink path={file.path} /></td>
+                      <td>{file.language ?? "–"}</td>
+                      <td>{file.match}</td>
+                      <td>
+                        <button
+                          type="button"
+                          className="button button--secondary"
+                          disabled={dependencyLoading && selectedFile === file.path}
+                          onClick={() => showDependencies(file.path)}
+                        >
+                          {dependencyLoading && selectedFile === file.path
+                            ? "Loading…"
+                            : "Show dependencies"}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
-        </div>
+        </section>
+      )}
+
+      {selectedFile && (
+        <section className="dependency-results" aria-live="polite">
+          <div className="section-heading">
+            <h2>Dependencies: {selectedFile}</h2>
+            <button
+              type="button"
+              className="button button--secondary"
+              onClick={() => {
+                setSelectedFile(null);
+                setDependencies(null);
+                setDependencyError(null);
+              }}
+            >
+              Close
+            </button>
+          </div>
+
+          {dependencyLoading && <p className="muted">Loading dependencies…</p>}
+          {dependencyError && <ErrorMessage message={dependencyError} />}
+
+          {dependencies && (
+            <>
+              <div className="dependency-columns">
+                <DependencyList
+                  title={`Imports (${dependencies.imports.length})`}
+                  paths={dependencies.imports}
+                  empty="This file does not import any stored project files."
+                />
+                <DependencyList
+                  title={`Imported by (${dependencies.imported_by.length})`}
+                  paths={dependencies.imported_by}
+                  empty="No stored project files import this file."
+                />
+                <section>
+                  <h3>Functions called ({dependencies.calls.length})</h3>
+                  {dependencies.calls.length === 0 ? (
+                    <p className="muted">No stored function calls from this file.</p>
+                  ) : (
+                    <ul>
+                      {dependencies.calls.map((call, index) => (
+                        <li key={`${call.name}:${call.line}:${index}`}>
+                          {call.name}{call.line != null ? ` (line ${call.line})` : ""}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </section>
+              </div>
+              <p>
+                <Link to={`/graph?file=${encodeURIComponent(dependencies.file_path)}&depth=2&symbols=1&calls=1`}>
+                  Open this file in the dependency graph
+                </Link>
+              </p>
+            </>
+          )}
+        </section>
       )}
     </>
+  );
+}
+
+function DependencyList({
+  title,
+  paths,
+  empty,
+}: {
+  title: string;
+  paths: string[];
+  empty: string;
+}) {
+  return (
+    <section>
+      <h3>{title}</h3>
+      {paths.length === 0 ? (
+        <p className="muted">{empty}</p>
+      ) : (
+        <ul className="path-list">
+          {paths.map((path) => <li key={path}><FilePathLink path={path} /></li>)}
+        </ul>
+      )}
+    </section>
   );
 }
