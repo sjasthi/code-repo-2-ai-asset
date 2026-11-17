@@ -1,5 +1,6 @@
 import type {
   AnalyzeResponse,
+  DependencySearchResponse,
   FileSearchResult,
   GraphOptions,
   GraphProject,
@@ -117,6 +118,21 @@ export const api = {
       query: { q, limit: 50 },
     }),
 
+  searchDependencies: (options: {
+    query: string;
+    target: "file" | "symbol";
+    filePath?: string;
+    type?: SymbolType;
+  }) =>
+    request<DependencySearchResponse>("/search/dependencies", {
+      query: {
+        q: options.query,
+        target: options.target,
+        file_path: options.filePath,
+        type: options.type,
+      },
+    }),
+
   fileImports: (filePath: string) =>
     request<ImportedFile[]>("/dependencies/imports", {
       query: { file_path: filePath },
@@ -151,6 +167,7 @@ const LANGUAGE_BY_EXTENSION: Record<string, string> = {
   mjs: "javascript",
   cjs: "javascript",
   ts: "typescript",
+  tsx: "typescript",
   mts: "typescript",
   cts: "typescript",
 };
