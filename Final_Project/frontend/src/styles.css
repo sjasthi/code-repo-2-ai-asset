@@ -812,3 +812,45 @@ select:focus {
     flex-wrap: wrap;
   }
 }
+/* ---------- Unified search dependency results ---------- */
+.dependency-results {
+  margin-top: 1.5rem;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.section-heading h2 {
+  margin: 0;
+}
+
+.dependency-columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: 1.25rem;
+  margin: 1rem 0;
+}
+
+.dependency-columns h3 {
+  margin: 0 0 0.65rem;
+  font-size: 1rem;
+}
+
+.table .actions {
+  align-items: center;
+  gap: 0.65rem;
+  margin: 0;
+}
+
+.table .actions .button {
+  white-space: nowrap;
+}
