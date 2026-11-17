@@ -93,8 +93,8 @@ export default function GraphCanvas({
 
   useEffect(() => {
     if (!cy) return;
-    // Bring the selected node into view without changing the zoom.
-    if (focusNode(cy, selectedId) && selectedId && !isInView(cy, selectedId)) {
+    // Center the selected node so search-result navigation opens directly on it.
+    if (focusNode(cy, selectedId) && selectedId) {
       cy.center(cy.getElementById(selectedId));
     }
   }, [cy, selectedId]);
@@ -144,7 +144,3 @@ export default function GraphCanvas({
   );
 }
 
-function isInView(cy: Core, id: string): boolean {
-  const box = cy.getElementById(id).renderedBoundingBox();
-  return box.x1 >= 0 && box.y1 >= 0 && box.x2 <= cy.width() && box.y2 <= cy.height();
-}
