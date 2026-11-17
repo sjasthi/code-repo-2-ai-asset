@@ -33,6 +33,11 @@ export default function GraphPage() {
   const depth = Number(params.get("depth") ?? 1) || 1;
   const includeSymbols = params.get("symbols") === "1";
   const includeCalls = params.get("calls") === "1";
+  const focusName = params.get("focus") ?? "";
+  const focusType = params.get("focusType") ?? "";
+  const focusLine = params.get("focusLine");
+  const graphQuery = params.get("q");
+  const hasGraphQuery = params.has("q");
 
   const [projects, setProjects] = useState<GraphProject[]>([]);
   const [graph, setGraph] = useState<GraphResponse | null>(null);
@@ -73,7 +78,20 @@ export default function GraphPage() {
       .then((response) => {
         if (cancelled) return;
         setGraph(response);
-        setSelectedId(file ? `file:${file}` : null);
+        if (focusName) {
+          const focusedNode = response.nodes.find((node) =>
+            node.label === focusName &&
+            node.path === file &&
+            (!focusType || node.type === focusType) &&
+            (focusLine == null || String(node.line ?? "") === focusLine)
+          ) ?? response.nodes.find((node) =>
+            node.label === focusName && node.path === file && (!focusType || node.type === focusType)
+          );
+          setSelectedId(focusedNode?.id ?? (file ? `file:${file}` : null));
+          setSearch(focusName);
+        } else {
+          setSelectedId(file ? `file:${file}` : null);
+        }
       })
       .catch((err) => {
         if (cancelled) return;
@@ -87,7 +105,11 @@ export default function GraphPage() {
     return () => {
       cancelled = true;
     };
-  }, [project, file, depth, includeSymbols, includeCalls]);
+  }, [project, file, depth, includeSymbols, includeCalls, focusName, focusType, focusLine]);
+
+  useEffect(() => {
+    if (hasGraphQuery) setSearch(graphQuery ?? "");
+  }, [graphQuery, hasGraphQuery]);
 
   const elements = useMemo(() => (graph ? toElements(graph) : []), [graph]);
   const details = useMemo(
