@@ -6,7 +6,7 @@ FP10 documentation for Code Dependency Graph.
 |---|---|---|
 | [User Guide](user-guide.md) | People using the app | Load code, search, trace dependencies, explore the graph |
 | [Developer Guide](developer-guide.md) | Contributors | Setup, architecture, data model, common tasks, testing, proposed CI |
-| [API Reference]: Interactive OpenAPI docs are available locally at http://localhost:8000/docs.
+| [API Reference](http://localhost:8000/docs) | Developers | Interactive OpenAPI documentation with all endpoints.
 | [Deployment Guide](deployment.md) | Whoever hosts it | Configuration, bare metal, Docker, cloud, monitoring, security checklist |
 | [Benchmarks](benchmarks.md) | Everyone | Final performance numbers against MVP targets |
 | [Roadmap](roadmap.md) | Team / planning | MVP status, known issues, technical debt, v2 and v3 |
