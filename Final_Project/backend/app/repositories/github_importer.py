@@ -1,10 +1,11 @@
 """Safe downloader for public GitHub repositories used by the import API.
 
 Repository code is treated as data: this module never executes imported code.
+The archive is streamed to disk so larger repositories do not require the
+entire compressed ZIP to remain in memory.
 """
 from __future__ import annotations
 
-import io
 import json
 import stat
 import urllib.error
@@ -21,12 +22,15 @@ class GitHubRepositoryImportError(ValueError):
 
 
 class GitHubRepositoryImporter:
-    MAX_DOWNLOAD_BYTES = 30 * 1024 * 1024
-    MAX_UNCOMPRESSED_BYTES = 100 * 1024 * 1024
-    MAX_ARCHIVE_ENTRIES = 10_000
-    MAX_SOURCE_FILES = 5_000
-    MAX_SOURCE_FILE_BYTES = 2 * 1024 * 1024
+    # Generous but finite limits protect the machine and Neo4j from accidental
+    # resource exhaustion and ZIP bombs. The archive is streamed to disk.
+    MAX_DOWNLOAD_BYTES = 500 * 1024 * 1024       # 500 MiB compressed ZIP
+    MAX_UNCOMPRESSED_BYTES = 2 * 1024 * 1024 * 1024  # 2 GiB expanded contents
+    MAX_ARCHIVE_ENTRIES = 50_000
+    MAX_SOURCE_FILES = 20_000
+    MAX_SOURCE_FILE_BYTES = 10 * 1024 * 1024     # 10 MiB per source file
     USER_AGENT = "Code-Dependency-Graph/1.0"
+    DOWNLOAD_CHUNK_BYTES = 1024 * 1024
 
     def import_repository(
         self,
@@ -57,17 +61,35 @@ class GitHubRepositoryImporter:
             f"{metadata_url}/zipball/"
             f"{urllib.parse.quote(branch, safe='')}"
         )
-        archive_bytes = self._read_bytes(archive_url, self.MAX_DOWNLOAD_BYTES)
 
         destination = Path(destination_dir).resolve()
         destination.mkdir(parents=True, exist_ok=True)
+        archive_path = destination / ".github-repository-download.zip"
 
+        try:
+            self._download_archive(archive_url, archive_path, self.MAX_DOWNLOAD_BYTES)
+            return self._extract_repository_archive(
+                archive_path, destination, owner, repo, branch
+            )
+        finally:
+            # The caller's TemporaryDirectory also cleans up on failure. Remove
+            # the archive explicitly so direct callers do not retain it.
+            archive_path.unlink(missing_ok=True)
+
+    def _extract_repository_archive(
+        self,
+        archive_path: Path,
+        destination: Path,
+        owner: str,
+        repo: str,
+        branch: str,
+    ) -> dict:
         files = []
         skipped_files = 0
         total_uncompressed = 0
 
         try:
-            archive = zipfile.ZipFile(io.BytesIO(archive_bytes))
+            archive = zipfile.ZipFile(archive_path)
         except zipfile.BadZipFile as error:
             raise GitHubRepositoryImportError(
                 "GitHub returned an invalid repository archive."
@@ -85,7 +107,7 @@ class GitHubRepositoryImporter:
                 total_uncompressed += entry.file_size
                 if total_uncompressed > self.MAX_UNCOMPRESSED_BYTES:
                     raise GitHubRepositoryImportError(
-                        "Repository archive exceeds the 100 MB expanded-size limit."
+                        "Repository archive exceeds the 2 GiB expanded-size limit."
                     )
 
                 if entry.is_dir():
@@ -93,8 +115,12 @@ class GitHubRepositoryImporter:
 
                 # GitHub ZIP archives contain a single top-level directory.
                 parts = PurePosixPath(entry.filename).parts
-                if (len(parts) < 2 or ".." in parts or entry.filename.startswith("/")
-                        or "\\" in entry.filename):
+                if (
+                    len(parts) < 2
+                    or ".." in parts
+                    or entry.filename.startswith("/")
+                    or "\\" in entry.filename
+                ):
                     skipped_files += 1
                     continue
 
@@ -132,7 +158,7 @@ class GitHubRepositoryImporter:
 
                 try:
                     source_code = archive.read(entry).decode("utf-8")
-                except (UnicodeDecodeError, RuntimeError):
+                except (UnicodeDecodeError, RuntimeError, zipfile.BadZipFile):
                     skipped_files += 1
                     continue
 
@@ -231,20 +257,28 @@ class GitHubRepositoryImporter:
                 "Could not contact GitHub. Check the network connection and try again."
             ) from error
 
-    def _read_bytes(self, url: str, max_bytes: int) -> bytes:
+    def _download_archive(self, url: str, destination: Path, max_bytes: int) -> int:
+        """Stream a ZIP archive to disk, enforcing a compressed-size limit."""
         request = urllib.request.Request(
             url,
             headers={"User-Agent": self.USER_AGENT},
         )
+        total_bytes = 0
         try:
-            with urllib.request.urlopen(request, timeout=45) as response:
-                payload = response.read(max_bytes + 1)
-            if len(payload) > max_bytes:
-                raise GitHubRepositoryImportError(
-                    f"Repository archive exceeds the {max_bytes // (1024 * 1024)} MB download limit."
-                )
-            return payload
+            with urllib.request.urlopen(request, timeout=90) as response:
+                with destination.open("wb") as output:
+                    while True:
+                        chunk = response.read(self.DOWNLOAD_CHUNK_BYTES)
+                        if not chunk:
+                            break
+                        total_bytes += len(chunk)
+                        if total_bytes > max_bytes:
+                            raise GitHubRepositoryImportError(
+                                "Repository archive exceeds the 500 MiB compressed-download limit."
+                            )
+                        output.write(chunk)
         except urllib.error.HTTPError as error:
+            destination.unlink(missing_ok=True)
             if error.code == 404:
                 raise GitHubRepositoryImportError(
                     "The requested branch was not found in this repository."
@@ -256,7 +290,10 @@ class GitHubRepositoryImporter:
             raise GitHubRepositoryImportError(
                 f"GitHub archive download failed (HTTP {error.code})."
             ) from error
-        except (urllib.error.URLError, TimeoutError) as error:
+        except (urllib.error.URLError, TimeoutError, OSError) as error:
+            destination.unlink(missing_ok=True)
             raise GitHubRepositoryImportError(
                 "Could not download the repository from GitHub."
             ) from error
+
+        return total_bytes
