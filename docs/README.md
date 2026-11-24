@@ -1,6 +1,14 @@
 # Documentation
 
-FP10 documentation for Code Dependency Graph.
+## About
+
+Code Dependency Graph helps users understand an unfamiliar codebase quickly. Users can import a public GitHub repository or upload their own source files, and it
+analyzes the code without running it. It extracts the classes, functions and
+variables in each file, then maps how files import each other and which
+functions call which. Users can explore the results through search, a per-file
+dependencies view, and an interactive graph.
+
+## Guides
 
 | Document | For | Contents |
 |---|---|---|
