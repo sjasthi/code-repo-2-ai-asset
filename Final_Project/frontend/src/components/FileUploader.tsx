@@ -1,4 +1,4 @@
-import { useRef, useState, type DragEvent } from "react";
+import { useEffect, useRef, useState, type DragEvent } from "react";
 import { api, ApiError, detectLanguage } from "../api/client";
 import type { AnalyzeResponse } from "../api/types";
 import FilePathLink from "./FilePathLink";
@@ -84,6 +84,40 @@ export default function FileUploader() {
   const [running, setRunning] = useState(false);
   const [unpacking, setUnpacking] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [storedFiles, setStoredFiles] = useState<
+    { path: string; language: string | null }[]
+  >([]);
+  const [removingStoredFile, setRemovingStoredFile] = useState<string | null>(null);
+  const [storedFileError, setStoredFileError] = useState<string | null>(null);
+
+  async function refreshStoredFiles() {
+    try {
+      setStoredFiles(await api.uploadedFiles());
+      setStoredFileError(null);
+    } catch (error) {
+      setStoredFileError(error instanceof ApiError ? error.message : String(error));
+    }
+  }
+
+  useEffect(() => {
+    void refreshStoredFiles();
+  }, []);
+
+  async function deleteStoredFile(filePath: string) {
+    if (!window.confirm(`Delete ${filePath} and its stored graph data? This cannot be undone.`)) {
+      return;
+    }
+    setRemovingStoredFile(filePath);
+    setStoredFileError(null);
+    try {
+      await api.deleteUploadedFile(filePath);
+      await refreshStoredFiles();
+    } catch (error) {
+      setStoredFileError(error instanceof ApiError ? error.message : String(error));
+    } finally {
+      setRemovingStoredFile(null);
+    }
+  }
 
   async function addFiles(fileList: FileList | null) {
     if (!fileList) return;
@@ -155,6 +189,7 @@ export default function FileUploader() {
       }
     }
 
+    await refreshStoredFiles();
     setRunning(false);
   }
 
@@ -166,6 +201,38 @@ export default function FileUploader() {
 
   return (
     <div>
+      <section className="repository-manager" aria-label="Manage uploaded files">
+        <div className="repository-manager-heading">
+          <div>
+            <h2>Manage uploaded files</h2>
+            <p className="muted">Remove files that are already stored in the graph.</p>
+          </div>
+        </div>
+        {storedFileError && <p className="error error--inline">{storedFileError}</p>}
+        {storedFiles.length === 0 ? (
+          <p className="muted">No uploaded files are currently stored.</p>
+        ) : (
+          <ul className="repository-list">
+            {storedFiles.map((item) => (
+              <li className="repository-row" key={item.path}>
+                <div className="repository-row-info">
+                  <strong className="path">{item.path}</strong>
+                  <span className="muted">{item.language ?? "Unknown language"}</span>
+                </div>
+                <button
+                  type="button"
+                  className="button button--danger"
+                  disabled={removingStoredFile !== null}
+                  onClick={() => deleteStoredFile(item.path)}
+                >
+                  {removingStoredFile === item.path ? "Removing…" : "Remove"}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
       <div
         className={dragging ? "dropzone dropzone--active" : "dropzone"}
         onDragOver={(event) => {
