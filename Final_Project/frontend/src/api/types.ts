@@ -104,6 +104,8 @@ export interface GraphResponse {
   // null when centred on a file and cut off: "more than `files`".
   total_files: number | null;
   truncated: boolean;
+  nodes_truncated?: boolean;
+  edges_truncated?: boolean;
 }
 
 export interface GraphProject {
