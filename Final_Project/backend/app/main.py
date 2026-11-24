@@ -1,4 +1,5 @@
 import logging
+import re
 from contextlib import asynccontextmanager
 from typing import Literal
 
@@ -429,6 +430,146 @@ def import_github_repository(
             ),
             "graph_path_prefix": repository_prefix,
         }
+
+
+@app.get("/uploads/files")
+def list_uploaded_files(database: Neo4jConnection = Depends(get_database)):
+    """List files stored through the manual Upload page (not GitHub imports)."""
+    return database.execute_query(
+        """
+        MATCH (f:File)
+        WHERE NOT f.path STARTS WITH 'github.com/'
+        RETURN f.path AS path, f.language AS language
+        ORDER BY f.path
+        """
+    )
+
+
+@app.delete("/uploads/files")
+def delete_uploaded_file(
+    file_path: str = Query(..., min_length=1),
+    database: Neo4jConnection = Depends(get_database),
+):
+    """Delete one manually uploaded file and its symbols/relationships."""
+    if file_path.startswith("github.com/"):
+        raise HTTPException(
+            status_code=400,
+            detail="GitHub repository files must be removed using repository management.",
+        )
+
+    matches = database.execute_query(
+        "MATCH (f:File {path: $path}) RETURN count(f) AS count",
+        {"path": file_path},
+    )
+    if not matches or matches[0]["count"] == 0:
+        raise HTTPException(status_code=404, detail="Uploaded file was not found.")
+
+    symbol_rows = database.execute_query(
+        "MATCH (s) WHERE s.file_path = $path RETURN count(s) AS count",
+        {"path": file_path},
+    )
+    symbols_deleted = symbol_rows[0]["count"] if symbol_rows else 0
+
+    database.execute_query(
+        "MATCH (s) WHERE s.file_path = $path DETACH DELETE s",
+        {"path": file_path},
+    )
+    database.execute_query(
+        "MATCH (f:File {path: $path}) DETACH DELETE f",
+        {"path": file_path},
+    )
+    database.execute_query(
+        """
+        MATCH (fn:Function)
+        WHERE fn.file_path IS NULL AND NOT (fn)--()
+        DETACH DELETE fn
+        """
+    )
+
+    return {
+        "status": "deleted",
+        "file": file_path,
+        "symbols_deleted": symbols_deleted,
+    }
+
+
+@app.delete("/repositories/{owner}/{repository}")
+def delete_github_repository(
+    owner: str,
+    repository: str,
+    database: Neo4jConnection = Depends(get_database),
+):
+    """
+    Delete one imported public GitHub repository and its indexed graph data.
+    Uploaded files and other repositories are left untouched.
+    """
+    if not re.fullmatch(r"[A-Za-z0-9_.-]+", owner) or not re.fullmatch(
+        r"[A-Za-z0-9_.-]+", repository
+    ):
+        raise HTTPException(status_code=400, detail="Invalid repository owner or name.")
+
+    prefix = f"github.com/{owner}/{repository}/"
+
+    file_count_rows = database.execute_query(
+        """
+        MATCH (f:File)
+        WHERE f.path STARTS WITH $prefix
+        RETURN count(f) AS count
+        """,
+        {"prefix": prefix},
+    )
+    files_deleted = file_count_rows[0]["count"] if file_count_rows else 0
+    if files_deleted == 0:
+        raise HTTPException(
+            status_code=404,
+            detail="This GitHub repository was not found in the imported graph.",
+        )
+
+    symbol_count_rows = database.execute_query(
+        """
+        MATCH (s)
+        WHERE s.file_path STARTS WITH $prefix
+        RETURN count(s) AS count
+        """,
+        {"prefix": prefix},
+    )
+    symbols_deleted = symbol_count_rows[0]["count"] if symbol_count_rows else 0
+
+    # Delete symbols first, then file nodes. DETACH DELETE also removes
+    # IMPORTS, CONTAINS, and CALLS relationships attached to these nodes.
+    database.execute_query(
+        """
+        MATCH (s)
+        WHERE s.file_path STARTS WITH $prefix
+        DETACH DELETE s
+        """,
+        {"prefix": prefix},
+    )
+    database.execute_query(
+        """
+        MATCH (f:File)
+        WHERE f.path STARTS WITH $prefix
+        DETACH DELETE f
+        """,
+        {"prefix": prefix},
+    )
+
+    # Unresolved call targets have no file_path. Remove only targets that
+    # became completely disconnected after deleting this repository.
+    database.execute_query(
+        """
+        MATCH (fn:Function)
+        WHERE fn.file_path IS NULL AND NOT (fn)--()
+        DETACH DELETE fn
+        """
+    )
+
+    return {
+        "status": "deleted",
+        "repository": f"{owner}/{repository}",
+        "files_deleted": files_deleted,
+        "symbols_deleted": symbols_deleted,
+    }
 
 
 SymbolType = Literal["class", "function", "method", "variable"]
