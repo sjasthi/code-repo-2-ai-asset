@@ -14,8 +14,8 @@ import {
   type LayoutName,
 } from "../graph/model";
 
-// Files per request; symbols and calls come on top of this.
-const FILE_LIMIT = 1000;
+// Keep the initial overview lightweight; expand details around a file on demand.
+const FILE_LIMIT = 500;
 
 const TYPE_NAME: Record<GraphNodeType, string> = {
   file: "File",
@@ -356,7 +356,9 @@ export default function GraphPage() {
           {graph.files} {graph.files === 1 ? "file" : "files"}, {nodeCount} nodes,{" "}
           {graph.edges.length} links.
           {graph.truncated &&
-            ` Showing the first ${graph.files} of ${graph.total_files ?? "more"} files; pick a project or center on a file to see the rest.`}
+            ` Showing the first ${graph.files} of ${graph.total_files ?? "more"} files; select a project or center on a file to narrow the view.`}
+          {graph.nodes_truncated && " Symbol/call node limit reached; center on a file to inspect a smaller area."}
+          {graph.edges_truncated && " Relationship limit reached; some links are hidden. Center on a file to inspect a smaller area."}
           {nodeCount > LARGE_GRAPH_NODES && " Large graph: labels appear as you zoom in."}
           {deferredSearch.trim() &&
             ` ${matchCount} ${matchCount === 1 ? "match" : "matches"} for “${deferredSearch.trim()}”.`}
@@ -391,6 +393,7 @@ export default function GraphPage() {
                 details={details}
                 onSelect={setSelectedId}
                 onCenter={(path) => updateParams({ file: path })}
+                onExpandDetails={(path) => updateParams({ file: path, symbols: "1", calls: "1" })}
               />
             ) : (
               <>
@@ -417,10 +420,12 @@ function NodePanel({
   details,
   onSelect,
   onCenter,
+  onExpandDetails,
 }: {
   details: NonNullable<ReturnType<typeof describeNode>>;
   onSelect: (id: string) => void;
   onCenter: (path: string) => void;
+  onExpandDetails: (path: string) => void;
 }) {
   const { node } = details;
   const isFile = node.type === "file";
@@ -440,6 +445,11 @@ function NodePanel({
         {filePath && (
           <button type="button" className="button button--secondary" onClick={() => onCenter(filePath)}>
             Center graph here
+          </button>
+        )}
+        {filePath && (
+          <button type="button" className="button button--primary" onClick={() => onExpandDetails(filePath)}>
+            Expand symbols &amp; calls
           </button>
         )}
         {isFile && node.path && (
