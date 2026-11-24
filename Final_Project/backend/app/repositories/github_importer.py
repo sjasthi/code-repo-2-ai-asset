@@ -12,6 +12,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import zipfile
+from collections.abc import Callable
 from pathlib import Path, PurePosixPath
 
 from app.parser.registry import detect_language, UnsupportedLanguageError
@@ -19,6 +20,10 @@ from app.parser.registry import detect_language, UnsupportedLanguageError
 
 class GitHubRepositoryImportError(ValueError):
     """Raised when a GitHub repository cannot be imported safely."""
+
+
+# progress(phase, fraction 0..1 within that phase, human-readable message)
+ProgressCallback = Callable[[str, float, str], None]
 
 
 class GitHubRepositoryImporter:
@@ -37,7 +42,9 @@ class GitHubRepositoryImporter:
         repository_url: str,
         destination_dir: str | Path,
         branch: str | None = None,
+        progress: ProgressCallback | None = None,
     ) -> dict:
+        report = progress or (lambda phase, fraction, message: None)
         owner, repo, url_branch = self._parse_repository_url(repository_url)
         branch = branch or url_branch
 
@@ -45,6 +52,7 @@ class GitHubRepositoryImporter:
             "https://api.github.com/repos/"
             f"{urllib.parse.quote(owner)}/{urllib.parse.quote(repo)}"
         )
+        report("metadata", 0.0, "Contacting GitHub…")
         metadata = self._read_json(metadata_url)
         if metadata.get("private"):
             raise GitHubRepositoryImportError(
@@ -67,9 +75,23 @@ class GitHubRepositoryImporter:
         archive_path = destination / ".github-repository-download.zip"
 
         try:
-            self._download_archive(archive_url, archive_path, self.MAX_DOWNLOAD_BYTES)
+            # GitHub reports repository size in KiB; the zip is usually smaller,
+            # so this is only an estimate used to scale the progress bar.
+            estimated_bytes = int(metadata.get("size") or 0) * 1024
+            self._download_archive(
+                archive_url,
+                archive_path,
+                self.MAX_DOWNLOAD_BYTES,
+                lambda done, total: report(
+                    "download",
+                    min(done / total, 0.99) if total else 0.0,
+                    f"Downloading repository ({done / 1048576:.1f} MiB)…",
+                ),
+                estimated_bytes,
+            )
+            report("download", 1.0, "Download complete.")
             return self._extract_repository_archive(
-                archive_path, destination, owner, repo, branch
+                archive_path, destination, owner, repo, branch, report
             )
         finally:
             # The caller's TemporaryDirectory also cleans up on failure. Remove
@@ -83,7 +105,9 @@ class GitHubRepositoryImporter:
         owner: str,
         repo: str,
         branch: str,
+        report: ProgressCallback | None = None,
     ) -> dict:
+        report = report or (lambda phase, fraction, message: None)
         files = []
         skipped_files = 0
         total_uncompressed = 0
@@ -103,7 +127,14 @@ class GitHubRepositoryImporter:
                     f"{self.MAX_ARCHIVE_ENTRIES})."
                 )
 
-            for entry in entries:
+            entry_total = len(entries) or 1
+            for index, entry in enumerate(entries):
+                if index % 200 == 0:
+                    report(
+                        "extract",
+                        index / entry_total,
+                        f"Extracting files ({index}/{entry_total})…",
+                    )
                 total_uncompressed += entry.file_size
                 if total_uncompressed > self.MAX_UNCOMPRESSED_BYTES:
                     raise GitHubRepositoryImportError(
@@ -177,6 +208,8 @@ class GitHubRepositoryImporter:
                     "language": language,
                     "size_bytes": entry.file_size,
                 })
+
+        report("extract", 1.0, "Extraction complete.")
 
         if not files:
             raise GitHubRepositoryImportError(
@@ -257,7 +290,14 @@ class GitHubRepositoryImporter:
                 "Could not contact GitHub. Check the network connection and try again."
             ) from error
 
-    def _download_archive(self, url: str, destination: Path, max_bytes: int) -> int:
+    def _download_archive(
+        self,
+        url: str,
+        destination: Path,
+        max_bytes: int,
+        on_progress: Callable[[int, int], None] | None = None,
+        estimated_bytes: int = 0,
+    ) -> int:
         """Stream a ZIP archive to disk, enforcing a compressed-size limit."""
         request = urllib.request.Request(
             url,
@@ -266,6 +306,12 @@ class GitHubRepositoryImporter:
         total_bytes = 0
         try:
             with urllib.request.urlopen(request, timeout=90) as response:
+                header_length = response.headers.get("Content-Length")
+                expected_bytes = (
+                    int(header_length)
+                    if header_length and header_length.isdigit()
+                    else estimated_bytes
+                )
                 with destination.open("wb") as output:
                     while True:
                         chunk = response.read(self.DOWNLOAD_CHUNK_BYTES)
@@ -277,6 +323,8 @@ class GitHubRepositoryImporter:
                                 "Repository archive exceeds the 500 MiB compressed-download limit."
                             )
                         output.write(chunk)
+                        if on_progress:
+                            on_progress(total_bytes, expected_bytes)
         except urllib.error.HTTPError as error:
             destination.unlink(missing_ok=True)
             if error.code == 404:

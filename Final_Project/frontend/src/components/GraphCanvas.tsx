@@ -4,12 +4,14 @@ import type { GraphNodeType } from "../api/types";
 import {
   fitGraph,
   focusNode,
-  graphStyle,
+  graphStyleFor,
+  graphSurface,
   highlightMatches,
   matchedNodes,
   runLayout,
   setHiddenTypes,
 } from "../graph/interactions";
+import { useTheme } from "../hooks/useTheme";
 import { LARGE_GRAPH_NODES, type LayoutName } from "../graph/model";
 
 interface Props {
@@ -35,6 +37,9 @@ export default function GraphCanvas({
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [cy, setCy] = useState<Core | null>(null);
+  const { theme } = useTheme();
+  const themeRef = useRef(theme);
+  themeRef.current = theme;
 
   // Cytoscape handlers are bound once, so read the latest callbacks via refs.
   const onSelectRef = useRef(onSelect);
@@ -51,7 +56,7 @@ export default function GraphCanvas({
     const instance = cytoscape({
       container: containerRef.current,
       elements,
-      style: graphStyle,
+      style: graphStyleFor(themeRef.current),
       minZoom: 0.05,
       maxZoom: 4,
       // Draw a snapshot while panning/zooming big graphs.
@@ -74,6 +79,11 @@ export default function GraphCanvas({
       setCy(null);
     };
   }, [elements]);
+
+  // Restyle in place on a theme change so the layout and selection survive.
+  useEffect(() => {
+    if (cy) cy.style(graphStyleFor(theme));
+  }, [cy, theme]);
 
   useEffect(() => {
     if (!cy) return;
@@ -110,7 +120,7 @@ export default function GraphCanvas({
   function savePng() {
     if (!cy) return;
     const link = document.createElement("a");
-    link.href = cy.png({ full: true, scale: 2, bg: "#ffffff" });
+    link.href = cy.png({ full: true, scale: 2, bg: graphSurface(theme) });
     link.download = "dependency-graph.png";
     link.click();
   }

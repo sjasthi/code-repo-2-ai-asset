@@ -6,6 +6,7 @@
   --line: #d8dee6;
   --teal: #0c6b6b;
   --teal-dark: #094f4f;
+  --teal-hover: #094f4f;
   --teal-tint: #e3f1f0;
   --danger: #a3262a;
   --danger-tint: #fbeaea;
@@ -15,6 +16,32 @@
   --font-sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
   --radius: 6px;
+
+  --legend-import: #566274;
+  --legend-contains: #c3cbd5;
+  --related-out: #0c6b6b;
+  --related-in: #c2410c;
+}
+
+:root[data-theme="dark"] {
+  --paper: #0f141a;
+  --surface: #171e27;
+  --ink: #e6ebf1;
+  --ink-soft: #a0abba;
+  --line: #2e3845;
+  --teal: #1d8f8f;
+  --teal-dark: #5fd0cc;
+  --teal-hover: #167474;
+  --teal-tint: #14302f;
+  --danger: #f08a8d;
+  --danger-tint: #3a1d1f;
+  --ok: #52c283;
+  --warn: #e0a040;
+
+  --legend-import: #a0abba;
+  --legend-contains: #4f5b6b;
+  --related-out: #2dd4bf;
+  --related-in: #fb923c;
 }
 
 *,
@@ -25,6 +52,10 @@
 
 html {
   color-scheme: light;
+}
+
+html[data-theme="dark"] {
+  color-scheme: dark;
 }
 
 body {
@@ -245,8 +276,8 @@ a:hover {
 }
 
 .button:hover:not(:disabled) {
-  background: var(--teal-dark);
-  border-color: var(--teal-dark);
+  background: var(--teal-hover);
+  border-color: var(--teal-hover);
 }
 
 .button:disabled {
@@ -498,6 +529,30 @@ select:focus {
   background: var(--surface);
 }
 
+/* ---------- Import progress ---------- */
+
+.import-progress {
+  margin-top: 1rem;
+}
+
+.import-progress p {
+  margin: 0.4rem 0 0;
+}
+
+.progress-bar {
+  height: 0.625rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--line);
+}
+
+.progress-bar__fill {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--teal);
+  transition: width 0.3s ease;
+}
+
 /* ---------- Summary ---------- */
 
 .summary {
@@ -723,11 +778,11 @@ select:focus {
 }
 
 .graph-related-title--outgoing {
-  color: #0c6b6b;
+  color: var(--related-out);
 }
 
 .graph-related-title--incoming {
-  color: #c2410c;
+  color: var(--related-in);
 }
 
 .graph-related ul {
@@ -769,11 +824,11 @@ select:focus {
 .legend-line {
   display: inline-block;
   width: 1.75rem;
-  border-top: 2px solid #566274;
+  border-top: 2px solid var(--legend-import);
 }
 
 .legend-line--contains {
-  border-top: 2px dashed #c3cbd5;
+  border-top: 2px dashed var(--legend-contains);
 }
 
 .legend-line--calls {
@@ -863,6 +918,28 @@ select:focus {
   background: var(--surface);
 }
 
+summary.repository-manager-heading {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  cursor: pointer;
+  list-style: none;
+}
+
+summary.repository-manager-heading::-webkit-details-marker {
+  display: none;
+}
+
+summary.repository-manager-heading::before {
+  content: "▸";
+  color: var(--ink-soft);
+  transition: transform 0.15s ease;
+}
+
+details[open] > summary.repository-manager-heading::before {
+  transform: rotate(90deg);
+}
+
 .repository-manager-heading h2 {
   margin: 0;
   font-size: 1rem;
@@ -906,4 +983,19 @@ select:focus {
   filter: brightness(0.92);
   background: var(--danger);
   border-color: var(--danger);
+}
+
+.theme-toggle {
+  padding: 0.3rem 0.65rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+
+.theme-toggle:hover {
+  background: var(--paper);
 }

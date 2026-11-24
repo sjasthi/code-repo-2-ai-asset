@@ -200,6 +200,27 @@ export default function FileUploader() {
 
     if (queuedItems.length === 0) return;
 
+    const stored = new Set(storedFiles.map((file) => file.path));
+    const duplicates = queuedItems.filter((item) => stored.has(item.path));
+
+    if (duplicates.length > 0) {
+      const names = duplicates.slice(0, 5).map((item) => item.path).join(", ");
+      const more = duplicates.length > 5 ? `, and ${duplicates.length - 5} more` : "";
+      const subject =
+        duplicates.length === 1
+          ? "This file is already"
+          : `${duplicates.length} of these files are already`;
+
+      if (
+        !window.confirm(
+          `${subject} in the database (${names}${more}). ` +
+            "Uploading again will replace the stored data. Are you sure you want to re-add it?",
+        )
+      ) {
+        return;
+      }
+    }
+
     setRunning(true);
     setCompletionMessage(null);
 
@@ -273,18 +294,15 @@ export default function FileUploader() {
 
   return (
     <div>
-      <section
-        className="repository-manager"
-        aria-label="Manage uploaded files"
-      >
-        <div className="repository-manager-heading">
-          <div>
+      <details className="repository-manager">
+        <summary className="repository-manager-heading">
+          <span>
             <h2>Manage uploaded files</h2>
             <p className="muted">
               Remove files that are already stored in the graph.
             </p>
-          </div>
-        </div>
+          </span>
+        </summary>
 
         {storedFileError && (
           <p className="error error--inline">{storedFileError}</p>
@@ -319,7 +337,7 @@ export default function FileUploader() {
             ))}
           </ul>
         )}
-      </section>
+      </details>
 
       <div
         className={dragging ? "dropzone dropzone--active" : "dropzone"}

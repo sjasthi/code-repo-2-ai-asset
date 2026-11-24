@@ -1,10 +1,14 @@
+import json
 import logging
+import queue
 import re
+import threading
 from contextlib import asynccontextmanager
 from typing import Literal
 
 from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from tempfile import TemporaryDirectory
 
@@ -303,11 +307,34 @@ def analyze_and_store_dependencies(
     }
 
 
-@app.post("/repositories/import")
-def import_github_repository(
+# Overall progress budget per phase: (start, end) as fractions of the whole.
+IMPORT_PHASES = {
+    "metadata": (0.00, 0.02),
+    "download": (0.02, 0.35),
+    "extract": (0.35, 0.45),
+    "analyze": (0.45, 0.80),
+    "store": (0.80, 1.00),
+}
+
+
+def _run_repository_import(
     request: RepositoryImportRequest,
-    database: Neo4jConnection = Depends(get_database),
+    database: Neo4jConnection,
+    emit=None,
 ):
+    """Import a repository, calling emit(event_dict) with progress updates."""
+
+    def report(phase: str, fraction: float, message: str):
+        if emit is None:
+            return
+        start, end = IMPORT_PHASES[phase]
+        emit({
+            "type": "progress",
+            "phase": phase,
+            "progress": round(start + (end - start) * max(0.0, min(fraction, 1.0)), 4),
+            "message": message,
+        })
+
     importer = GitHubRepositoryImporter()
 
     with TemporaryDirectory(prefix="code-repo-import-") as temporary_directory:
@@ -316,6 +343,7 @@ def import_github_repository(
                 request.repository_url,
                 temporary_directory,
                 request.branch,
+                progress=report,
             )
         except GitHubRepositoryImportError as error:
             raise HTTPException(status_code=400, detail=str(error)) from error
@@ -332,7 +360,14 @@ def import_github_repository(
         analyzed_files = []
         dependencies_found = 0
 
-        for file_info in repository["files"]:
+        total_files = len(repository["files"])
+        for index, file_info in enumerate(repository["files"]):
+            if index % 25 == 0:
+                report(
+                    "analyze",
+                    index / total_files,
+                    f"Analyzing files ({index}/{total_files})…",
+                )
             relative_path = file_info["path"]
             language = file_info["language"]
             source_code = (
@@ -380,6 +415,9 @@ def import_github_repository(
                 "has_syntax_errors": has_syntax_errors,
             })
 
+        report("analyze", 1.0, "Analysis complete.")
+        report("store", 0.0, "Replacing previous graph data…")
+
         # Re-imports replace this repository's old files/symbols instead of
         # leaving deleted or renamed files in the graph.
         database.execute_query(
@@ -402,7 +440,13 @@ def import_github_repository(
         symbols_stored = 0
         relationships_stored = 0
 
-        for file_info in analyzed_files:
+        for index, file_info in enumerate(analyzed_files):
+            if index % 10 == 0:
+                report(
+                    "store",
+                    0.05 + 0.95 * index / max(len(analyzed_files), 1),
+                    f"Saving to graph ({index}/{len(analyzed_files)})…",
+                )
             relationships_stored += graph_builder.store_dependencies(
                 file_info["path"],
                 file_info["language"],
@@ -430,6 +474,59 @@ def import_github_repository(
             ),
             "graph_path_prefix": repository_prefix,
         }
+
+
+@app.post("/repositories/import")
+def import_github_repository(
+    request: RepositoryImportRequest,
+    database: Neo4jConnection = Depends(get_database),
+):
+    return _run_repository_import(request, database)
+
+
+@app.post("/repositories/import/stream")
+def import_github_repository_stream(
+    request: RepositoryImportRequest,
+    database: Neo4jConnection = Depends(get_database),
+):
+    """Same as /repositories/import, but streams newline-delimited JSON.
+
+    Events: {"type": "progress", "phase", "progress" (0..1), "message"},
+    then exactly one {"type": "result", "data": {...}} or
+    {"type": "error", "status", "detail"}.
+    """
+    events: queue.Queue = queue.Queue()
+
+    def worker():
+        try:
+            result = _run_repository_import(request, database, events.put)
+            events.put({"type": "result", "data": result})
+        except HTTPException as error:
+            events.put({
+                "type": "error",
+                "status": error.status_code,
+                "detail": str(error.detail),
+            })
+        except Exception:
+            logging.getLogger(__name__).exception("Repository import failed")
+            events.put({
+                "type": "error",
+                "status": 500,
+                "detail": "Repository import failed unexpectedly.",
+            })
+        finally:
+            events.put(None)
+
+    threading.Thread(target=worker, daemon=True).start()
+
+    def stream():
+        while True:
+            event = events.get()
+            if event is None:
+                return
+            yield json.dumps(event) + "\n"
+
+    return StreamingResponse(stream(), media_type="application/x-ndjson")
 
 
 @app.get("/uploads/files")

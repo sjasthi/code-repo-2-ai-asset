@@ -33,6 +33,8 @@ export default function GraphPage() {
   const depth = Number(params.get("depth") ?? 1) || 1;
   const includeSymbols = params.get("symbols") === "1";
   const includeCalls = params.get("calls") === "1";
+  // Import lines are off unless the URL opts in with ?imports=1.
+  const hideImports = params.get("imports") !== "1";
   const focusName = params.get("focus") ?? "";
   const focusType = params.get("focusType") ?? "";
   const focusLine = params.get("focusLine");
@@ -168,7 +170,16 @@ export default function GraphPage() {
     if (hasGraphQuery) setSearch(graphQuery ?? "");
   }, [graphQuery, hasGraphQuery]);
 
-  const elements = useMemo(() => (graph ? toElements(graph) : []), [graph]);
+  // Import lines are hidden only in the drawing; the details panel still
+  // lists a file's imports from the full graph.
+  const elements = useMemo(() => {
+    if (!graph) return [];
+    return toElements(
+      hideImports
+        ? { ...graph, edges: graph.edges.filter((edge) => edge.type !== "imports") }
+        : graph,
+    );
+  }, [graph, hideImports]);
   const details = useMemo(
     () => (graph && selectedId ? describeNode(graph, selectedId) : null),
     [graph, selectedId],
@@ -274,13 +285,13 @@ export default function GraphPage() {
       </div>
 
       {projects.some((item) => item.id.startsWith("github.com/")) && (
-        <section className="repository-manager" aria-label="Manage imported repositories">
-          <div className="repository-manager-heading">
-            <div>
+        <details className="repository-manager">
+          <summary className="repository-manager-heading">
+            <span>
               <h2>Manage imported repositories</h2>
               <p className="muted">Remove old imports and their indexed graph data.</p>
-            </div>
-          </div>
+            </span>
+          </summary>
           {projectActionError && <ErrorMessage message={projectActionError} />}
           <ul className="repository-list">
             {projects
@@ -304,7 +315,7 @@ export default function GraphPage() {
                 </li>
               ))}
           </ul>
-        </section>
+        </details>
       )}
 
       <fieldset className="filters graph-filters">
@@ -324,6 +335,14 @@ export default function GraphPage() {
             onChange={(event) => updateParams({ calls: event.target.checked ? "1" : null })}
           />
           Function calls
+        </label>
+        <label className="check">
+          <input
+            type="checkbox"
+            checked={!hideImports}
+            onChange={(event) => updateParams({ imports: event.target.checked ? "1" : null })}
+          />
+          Import lines
         </label>
       </fieldset>
 

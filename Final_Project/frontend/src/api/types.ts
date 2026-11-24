@@ -31,6 +31,13 @@ export interface RepositoryImportResponse {
   graph_path_prefix: string;
 }
 
+export interface ImportProgress {
+  phase: "metadata" | "download" | "extract" | "analyze" | "store";
+  /** Overall completion, 0..1. */
+  progress: number;
+  message: string;
+}
+
 export interface SymbolSearchResult {
   type: string;
   name: string;

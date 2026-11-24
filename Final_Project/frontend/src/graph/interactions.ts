@@ -14,14 +14,32 @@ const MATCH = "match";
 const SEARCH_DIM = "search-dim";
 const HIDDEN = "hidden";
 
-export const graphStyle: StylesheetJson = [
+// Colours that must differ between light and dark backgrounds.
+const PALETTES = {
+  light: { label: "#1b2430", soft: "#566274", imports: "#566274", contains: "#c3cbd5", focus: "#1b2430", outgoing: "#0c6b6b", incoming: "#c2410c", surface: "#ffffff" },
+  dark: { label: "#e6ebf1", soft: "#a0abba", imports: "#a0abba", contains: "#4f5b6b", focus: "#ffffff", outgoing: "#2dd4bf", incoming: "#fb923c", surface: "#171e27" },
+};
+
+export type GraphTheme = keyof typeof PALETTES;
+
+export function graphSurface(theme: GraphTheme): string {
+  return PALETTES[theme].surface;
+}
+
+export function graphStyleFor(theme: GraphTheme): StylesheetJson {
+  const c = PALETTES[theme];
+  return buildStyle(c);
+}
+
+function buildStyle(c: (typeof PALETTES)["light"]): StylesheetJson {
+  return [
   {
     selector: "node",
     style: {
       label: "data(label)",
       "font-size": 10,
       "font-family": "IBM Plex Sans, system-ui, sans-serif",
-      color: "#1b2430",
+      color: c.label,
       "text-valign": "bottom",
       "text-margin-y": 3,
       "text-wrap": "ellipsis",
@@ -46,7 +64,7 @@ export const graphStyle: StylesheetJson = [
       "background-opacity": 0,
       "border-width": 1.5,
       "border-color": NODE_LOOK.external.color,
-      color: "#566274",
+      color: c.soft,
     },
   },
   {
@@ -60,17 +78,20 @@ export const graphStyle: StylesheetJson = [
       "arrow-scale": 0.8,
     },
   },
-  { selector: 'edge[type = "imports"]', style: { width: 1.6, "line-color": "#566274", "target-arrow-color": "#566274" } },
-  { selector: 'edge[type = "contains"]', style: { "line-style": "dashed", "line-color": "#c3cbd5", "target-arrow-shape": "none" } },
+  { selector: 'edge[type = "imports"]', style: { width: 1.6, "line-color": c.imports, "target-arrow-color": c.imports } },
+  { selector: 'edge[type = "contains"]', style: { "line-style": "dashed", "line-color": c.contains, "target-arrow-shape": "none" } },
   { selector: 'edge[type = "calls"]', style: { "line-style": "dotted", "line-color": "#2563eb", "target-arrow-color": "#2563eb" } },
 
   { selector: `.${MATCH}`, style: { "border-width": 3, "border-color": "#f59e0b", "z-index": 20, "font-weight": "bold" } },
-  { selector: `.${FOCUS}`, style: { "border-width": 3, "border-color": "#1b2430", "z-index": 30, "font-weight": "bold", "font-size": 12 } },
-  { selector: `edge.${OUTGOING}[type != "contains"]`, style: { width: 2.5, "line-color": "#0c6b6b", "target-arrow-color": "#0c6b6b", "z-index": 25 } },
-  { selector: `edge.${INCOMING}[type != "contains"]`, style: { width: 2.5, "line-color": "#c2410c", "target-arrow-color": "#c2410c", "z-index": 25 } },
+  { selector: `.${FOCUS}`, style: { "border-width": 3, "border-color": c.focus, "z-index": 30, "font-weight": "bold", "font-size": 12 } },
+  { selector: `edge.${OUTGOING}[type != "contains"]`, style: { width: 2.5, "line-color": c.outgoing, "target-arrow-color": c.outgoing, "z-index": 25 } },
+  { selector: `edge.${INCOMING}[type != "contains"]`, style: { width: 2.5, "line-color": c.incoming, "target-arrow-color": c.incoming, "z-index": 25 } },
   { selector: `.${FOCUS_DIM}, .${SEARCH_DIM}`, style: { opacity: 0.12 } },
   { selector: `.${HIDDEN}`, style: { display: "none" } },
-];
+  ];
+}
+
+export const graphStyle: StylesheetJson = graphStyleFor("light");
 
 export function clearFocus(cy: Core) {
   cy.elements().removeClass([FOCUS, NEIGHBOUR, OUTGOING, INCOMING, FOCUS_DIM].join(" "));

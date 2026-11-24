@@ -6,6 +6,7 @@ import type {
   GraphProject,
   GraphResponse,
   ImportedFile,
+  ImportProgress,
   ImportingFile,
   Neo4jHealth,
   RepositoryImportResponse,
@@ -90,7 +91,86 @@ async function request<T>(
   return response.json() as Promise<T>;
 }
 
+// Streams newline-delimited JSON from /repositories/import/stream, calling
+// onProgress for each update and resolving with the final import result.
+async function importRepositoryStream(
+  repositoryUrl: string,
+  branch: string | undefined,
+  onProgress: (progress: ImportProgress) => void,
+  signal?: AbortSignal,
+): Promise<RepositoryImportResponse> {
+  let response: Response;
+
+  try {
+    response = await fetch(buildUrl("/repositories/import/stream"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        repository_url: repositoryUrl,
+        branch: branch || null,
+      }),
+      signal,
+    });
+  } catch (err) {
+    if (err instanceof DOMException && err.name === "AbortError") throw err;
+    throw new ApiError(
+      `Cannot reach the backend at ${API_URL}. Is it running?`,
+      0,
+    );
+  }
+
+  if (!response.ok || !response.body) {
+    let detail: unknown;
+    try {
+      detail = (await response.json()).detail;
+    } catch {
+      /* body was not JSON */
+    }
+    throw new ApiError(
+      detailToMessage(detail, `Request failed (${response.status})`),
+      response.status,
+    );
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let result: RepositoryImportResponse | null = null;
+
+  function handleLine(line: string) {
+    if (!line.trim()) return;
+    const event = JSON.parse(line);
+    if (event.type === "progress") {
+      onProgress(event as ImportProgress);
+    } else if (event.type === "result") {
+      result = event.data as RepositoryImportResponse;
+    } else if (event.type === "error") {
+      throw new ApiError(
+        detailToMessage(event.detail, "Import failed."),
+        event.status ?? 500,
+      );
+    }
+  }
+
+  for (;;) {
+    const { done, value } = await reader.read();
+    buffer += decoder.decode(value, { stream: !done });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() ?? "";
+    lines.forEach(handleLine);
+    if (done) break;
+  }
+  handleLine(buffer);
+
+  if (!result) {
+    throw new ApiError("The import ended before it finished.", 0);
+  }
+  return result;
+}
+
 export const api = {
+  importRepositoryStream,
+
   health: () => request<{ status: string }>("/health"),
 
   neo4jHealth: () => request<Neo4jHealth>("/health/neo4j"),

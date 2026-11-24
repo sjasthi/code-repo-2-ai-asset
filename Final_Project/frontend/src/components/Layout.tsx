@@ -1,5 +1,6 @@
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { API_URL } from "../api/client";
+import { useTheme } from "../hooks/useTheme";
 import { useApiStatus, type ServiceState } from "../hooks/useApiStatus";
 import ErrorBoundary from "./ErrorBoundary";
 
@@ -35,6 +36,7 @@ function StatusDot({
 
 export default function Layout() {
   const status = useApiStatus();
+  const { theme, toggle } = useTheme();
   const location = useLocation();
 
   return (
@@ -70,6 +72,15 @@ export default function Layout() {
               title={status.databaseDetail}
             />
           </div>
+
+          <button
+            type="button"
+            className="theme-toggle"
+            aria-pressed={theme === "dark"}
+            onClick={toggle}
+          >
+            {theme === "dark" ? "☀ Light mode" : "☾ Dark mode"}
+          </button>
         </div>
       </header>
 
