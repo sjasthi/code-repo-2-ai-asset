@@ -57,7 +57,7 @@ function detailToMessage(detail: unknown, fallback: string): string {
 
 async function request<T>(
   path: string,
-  options: { method?: "GET" | "POST"; query?: Query; body?: unknown } = {},
+  options: { method?: "GET" | "POST" | "DELETE"; query?: Query; body?: unknown } = {},
 ): Promise<T> {
   let response: Response;
 
@@ -107,6 +107,21 @@ export const api = {
       method: "POST",
       body: { repository_url: repositoryUrl, branch: branch || null },
     }),
+
+  deleteRepository: (owner: string, repository: string) =>
+    request<{ status: string; repository: string; files_deleted: number; symbols_deleted: number }>(
+      `/repositories/${encodeURIComponent(owner)}/${encodeURIComponent(repository)}`,
+      { method: "DELETE" },
+    ),
+
+  uploadedFiles: () =>
+    request<{ path: string; language: string | null }[]>("/uploads/files"),
+
+  deleteUploadedFile: (filePath: string) =>
+    request<{ status: string; file: string; symbols_deleted: number }>(
+      "/uploads/files",
+      { method: "DELETE", query: { file_path: filePath } },
+    ),
 
   searchSymbols: (q: string, types: SymbolType[], fuzzy: boolean) =>
     request<SearchResponse<SymbolSearchResult>>("/search/symbols", {
