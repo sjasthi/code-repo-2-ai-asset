@@ -40,6 +40,8 @@ export default function GraphPage() {
   const hasGraphQuery = params.has("q");
 
   const [projects, setProjects] = useState<GraphProject[]>([]);
+  const [removingProject, setRemovingProject] = useState<string | null>(null);
+  const [projectActionError, setProjectActionError] = useState<string | null>(null);
   const [graph, setGraph] = useState<GraphResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -63,9 +65,64 @@ export default function GraphPage() {
     setParams(next);
   }
 
+  async function refreshProjects() {
+    const updatedProjects = await api.graphProjects();
+    setProjects(updatedProjects);
+  }
+
   useEffect(() => {
-    api.graphProjects().then(setProjects).catch(() => setProjects([]));
+    let cancelled = false;
+    api.graphProjects()
+      .then((items) => {
+        if (!cancelled) setProjects(items);
+      })
+      .catch(() => {
+        if (!cancelled) setProjects([]);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
+
+  async function removeRepository(repositoryProject: GraphProject) {
+    const match = /^github\.com\/([^/]+)\/([^/]+)\/$/.exec(repositoryProject.id);
+    if (!match) {
+      setProjectActionError("This item is not a GitHub repository.");
+      return;
+    }
+
+    const [, owner, repository] = match;
+    const confirmed = window.confirm(
+      `Delete ${owner}/${repository} and all of its indexed graph data? This cannot be undone.`,
+    );
+    if (!confirmed) return;
+
+    setRemovingProject(repositoryProject.id);
+    setProjectActionError(null);
+    try {
+      await api.deleteRepository(owner, repository);
+      await refreshProjects();
+
+      if (
+        project === repositoryProject.id ||
+        file.startsWith(repositoryProject.id)
+      ) {
+        updateParams({
+          project: null,
+          file: null,
+          focus: null,
+          focusType: null,
+          focusLine: null,
+        });
+      }
+    } catch (err) {
+      setProjectActionError(
+        err instanceof ApiError ? err.message : String(err),
+      );
+    } finally {
+      setRemovingProject(null);
+    }
+  }
 
   useEffect(() => {
     setFileInput(file);
@@ -215,6 +272,40 @@ export default function GraphPage() {
           />
         </label>
       </div>
+
+      {projects.some((item) => item.id.startsWith("github.com/")) && (
+        <section className="repository-manager" aria-label="Manage imported repositories">
+          <div className="repository-manager-heading">
+            <div>
+              <h2>Manage imported repositories</h2>
+              <p className="muted">Remove old imports and their indexed graph data.</p>
+            </div>
+          </div>
+          {projectActionError && <ErrorMessage message={projectActionError} />}
+          <ul className="repository-list">
+            {projects
+              .filter((item) => item.id.startsWith("github.com/"))
+              .map((item) => (
+                <li className="repository-row" key={item.id}>
+                  <div className="repository-row-info">
+                    <strong>{item.label}</strong>
+                    <span className="muted">
+                      {item.files} {item.files === 1 ? "file" : "files"}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    className="button button--danger"
+                    disabled={removingProject !== null}
+                    onClick={() => removeRepository(item)}
+                  >
+                    {removingProject === item.id ? "Removing…" : "Remove"}
+                  </button>
+                </li>
+              ))}
+          </ul>
+        </section>
+      )}
 
       <fieldset className="filters graph-filters">
         <legend>Include</legend>
