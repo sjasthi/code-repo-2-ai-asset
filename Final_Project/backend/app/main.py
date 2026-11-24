@@ -789,6 +789,8 @@ class GraphResponse(BaseModel):
     files: int
     total_files: int | None
     truncated: bool
+    nodes_truncated: bool = False
+    edges_truncated: bool = False
 
 
 @app.get("/graph/projects", response_model=list[GraphProject])
@@ -820,7 +822,7 @@ def get_graph(
     include_calls: bool = Query(
         False, description="Add function-call edges."
     ),
-    limit: int = Query(500, ge=1, le=5000, description="Maximum files."),
+    limit: int = Query(500, ge=1, le=500, description="Maximum files in one graph response."),
     database: Neo4jConnection = Depends(get_database),
 ):
     """
