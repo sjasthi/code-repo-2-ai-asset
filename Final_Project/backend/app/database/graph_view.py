@@ -69,6 +69,8 @@ IMPORT_EDGES = """
 MATCH (a:File)-[r:IMPORTS]->(b:File)
 WHERE a.path IN $paths AND b.path IN $paths
 RETURN a.path AS source, b.path AS target, r.line AS line
+ORDER BY source, target
+LIMIT $limit
 """
 
 FILE_SYMBOLS = """
@@ -79,6 +81,8 @@ RETURN elementId(s) AS id,
        s.name AS name,
        s.line AS line,
        f.path AS file_path
+ORDER BY f.path, s.line, s.name
+LIMIT $limit
 """
 
 # Calls point at a Function node by name. It may be a function defined
@@ -92,6 +96,8 @@ RETURN f.path AS source,
        fn.file_path AS file_path,
        fn.line AS line,
        count(r) AS calls
+ORDER BY source, name
+LIMIT $limit
 """
 
 
@@ -132,7 +138,16 @@ class GraphView:
         include_symbols: bool = False,
         include_calls: bool = False,
         limit: int = 500,
+        symbol_limit: int = 2000,
+        call_limit: int = 2000,
+        edge_limit: int = 5000,
     ):
+        # Keep response sizes bounded even if a caller bypasses the UI.
+        limit = min(max(int(limit), 1), 500)
+        symbol_limit = min(max(int(symbol_limit), 1), 2000)
+        call_limit = min(max(int(call_limit), 1), 2000)
+        edge_limit = min(max(int(edge_limit), 1), 5000)
+
         scope = {
             "project": project,
             "uploads": UPLOADS_PROJECT,
@@ -175,8 +190,17 @@ class GraphView:
         }
         edges = []
 
+        edges_truncated = False
+        nodes_truncated = False
+
         if paths:
-            for row in self.db.execute_query(IMPORT_EDGES, {"paths": paths}):
+            import_rows = self.db.execute_query(
+                IMPORT_EDGES, {"paths": paths, "limit": edge_limit + 1}
+            )
+            if len(import_rows) > edge_limit:
+                edges_truncated = True
+                import_rows = import_rows[:edge_limit]
+            for row in import_rows:
                 edges.append({
                     "id": f"imports:{row['source']}->{row['target']}",
                     "source": file_node_id(row["source"]),
@@ -186,7 +210,13 @@ class GraphView:
                 })
 
         if paths and include_symbols:
-            for row in self.db.execute_query(FILE_SYMBOLS, {"paths": paths}):
+            symbol_rows = self.db.execute_query(
+                FILE_SYMBOLS, {"paths": paths, "limit": symbol_limit + 1}
+            )
+            if len(symbol_rows) > symbol_limit:
+                nodes_truncated = True
+                symbol_rows = symbol_rows[:symbol_limit]
+            for row in symbol_rows:
                 symbol_type = SYMBOL_TYPES.get(row["label"])
                 if not symbol_type:
                     continue
@@ -206,7 +236,13 @@ class GraphView:
                 })
 
         if paths and include_calls:
-            for row in self.db.execute_query(FILE_CALLS, {"paths": paths}):
+            call_rows = self.db.execute_query(
+                FILE_CALLS, {"paths": paths, "limit": call_limit + 1}
+            )
+            if len(call_rows) > call_limit:
+                nodes_truncated = True
+                call_rows = call_rows[:call_limit]
+            for row in call_rows:
                 # Reuse the symbol node when the call resolved to one.
                 nodes.setdefault(row["id"], {
                     "id": row["id"],
@@ -223,10 +259,16 @@ class GraphView:
                     "count": row.get("calls", 1),
                 })
 
+        if len(edges) > edge_limit:
+            edges = edges[:edge_limit]
+            edges_truncated = True
+
         return {
             "nodes": list(nodes.values()),
             "edges": edges,
             "files": len(paths),
             "total_files": total,
             "truncated": truncated,
+            "nodes_truncated": nodes_truncated,
+            "edges_truncated": edges_truncated,
         }
