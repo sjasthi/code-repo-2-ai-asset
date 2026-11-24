@@ -8,6 +8,22 @@ variables in each file, then maps how files import each other and which
 functions call which. Users can explore the results through search, a per-file
 dependencies view, and an interactive graph.
 
+## Use Cases
+
+- **Onboarding to a new project:** Import the repository and start from its
+  entry file in the graph. Follow its imports one to three hops out to see how
+  the main pieces connect before reading any code.
+- **Judging the impact of a change:** Open a file in the dependencies view to
+  see everything that imports it, and every function that calls into it, so you
+  know what might break before you edit it.
+- **Planning a refactor:** Spot tightly coupled files and heavily imported
+  modules in the graph, and find where a class or function is defined and used
+  with symbol search.
+- **Reviewing an open-source dependency:** Import a public library to see how
+  it is organized and trace how its internals fit together before you adopt it.
+- **Documenting an architecture:** Center the graph on a module, then export it
+  as a PNG or share the view by link.
+
 ## Guides
 
 | Document | For | Contents |
