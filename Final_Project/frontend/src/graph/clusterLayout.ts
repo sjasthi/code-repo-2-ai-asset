@@ -118,39 +118,65 @@ export function clusteredPositions(cy: Core): Record<string, Position> {
 }
 
 /**
- * Push overlapping circles apart, pair by pair, until none overlap. The
- * force layout gets close; this cleans up what it leaves.
+ * Push overlapping file-cluster circles apart using a spatial hash.
+ * Each pass checks only the current cell and its eight neighbours rather
+ * than comparing every pair of files (O(n^2)). The grid is rebuilt after
+ * each pass so moved circles are considered at their new positions.
  */
-export function separate(centers: Position[], radii: number[], maxPasses = 200): Position[] {
+export function separate(centers: Position[], radii: number[], maxPasses = 120): Position[] {
   const result = centers.map((p) => ({ ...p }));
+  if (result.length < 2) return result;
+
+  const maxRadius = Math.max(...radii, 1);
+  const cellSize = Math.max(2 * maxRadius + CLUSTER_GAP, 1);
+  const cellKey = (x: number, y: number) => `${x},${y}`;
 
   for (let pass = 0; pass < maxPasses; pass++) {
+    const buckets = new Map<string, number[]>();
+    const cells = result.map((point) => ({
+      x: Math.floor(point.x / cellSize),
+      y: Math.floor(point.y / cellSize),
+    }));
+
+    cells.forEach((cell, index) => {
+      const key = cellKey(cell.x, cell.y);
+      const bucket = buckets.get(key) ?? [];
+      bucket.push(index);
+      buckets.set(key, bucket);
+    });
+
     let moved = false;
-
     for (let i = 0; i < result.length; i++) {
-      for (let j = i + 1; j < result.length; j++) {
-        let dx = result[j].x - result[i].x;
-        let dy = result[j].y - result[i].y;
-        let distance = Math.hypot(dx, dy);
-        const needed = radii[i] + radii[j] + CLUSTER_GAP;
-        if (distance >= needed) continue;
+      const cell = cells[i];
+      for (let ox = -1; ox <= 1; ox++) {
+        for (let oy = -1; oy <= 1; oy++) {
+          const nearby = buckets.get(cellKey(cell.x + ox, cell.y + oy)) ?? [];
+          for (const j of nearby) {
+            if (j <= i) continue;
 
-        if (distance < 1e-6) {
-          // Same spot: pick a direction that differs per pair.
-          const angle = (i * 7 + j * 13) % 360;
-          dx = Math.cos(angle);
-          dy = Math.sin(angle);
-          distance = 1;
+            let dx = result[j].x - result[i].x;
+            let dy = result[j].y - result[i].y;
+            let distance = Math.hypot(dx, dy);
+            const needed = radii[i] + radii[j] + CLUSTER_GAP;
+            if (distance >= needed) continue;
+
+            if (distance < 1e-6) {
+              const angle = ((i * 7 + j * 13) % 360) * Math.PI / 180;
+              dx = Math.cos(angle);
+              dy = Math.sin(angle);
+              distance = 1;
+            }
+
+            const push = (needed - distance) / 2 + 0.01;
+            const ux = dx / distance;
+            const uy = dy / distance;
+            result[i].x -= ux * push;
+            result[i].y -= uy * push;
+            result[j].x += ux * push;
+            result[j].y += uy * push;
+            moved = true;
+          }
         }
-
-        const push = (needed - distance) / 2 + 0.01;
-        const ux = dx / distance;
-        const uy = dy / distance;
-        result[i].x -= ux * push;
-        result[i].y -= uy * push;
-        result[j].x += ux * push;
-        result[j].y += uy * push;
-        moved = true;
       }
     }
 
