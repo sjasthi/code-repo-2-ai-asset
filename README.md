@@ -7,6 +7,17 @@ then search symbols, trace who-imports-what, and explore an interactive graph.
 
 **Status:** MVP complete (FP10). See [MVP status and roadmap](docs/roadmap.md).
 
+## Project Overview:
+Code Dependency Graph is a web-based application designed to help developers understand the structure and relationships within a software codebase.
+
+When working with large software projects, it can be difficult to understand how different files, classes, functions, and methods connect to one another. Developers may need to manually search through multiple files to identify dependencies and understand how changes in one part of a project could affect another.
+
+Our application addresses this challenge by analyzing source code repositories and transforming their contents into structured, searchable dependency information.
+
+Users can import a public GitHub repository or upload individual source files and ZIP folders. The application parses supported source code, extracts symbols and dependency relationships, and stores the information in a Neo4j graph database.
+
+Users can then search for specific code elements, investigate file dependencies, and visually explore the codebase through an interactive graph.
+
 ## Features
 
 - **Bring code in:** import any public GitHub repository (optionally a branch),
@@ -21,6 +32,17 @@ then search symbols, trace who-imports-what, and explore an interactive graph.
 - **Interactive graph:** Cytoscape.js. Center on a file with 1–3 hops,
   highlight neighbors, filter node types, export PNG, and share views by URL.
   Stays responsive with thousands of nodes.
+
+## Technology Stack
+Our application uses a combination of frontend, backend, database, and code-analysis technologies. Each technology serves a specific purpose in processing source code, storing dependency information, and presenting the results to users.
+
+- ##React:## Allows us to create an interactive application with separate pages for uploads, search, dependencies, and graph visualization
+- ##TypeScript:## Helps organize application data and catch potential type-related errors, especially when handling API responses, files, and graph information.
+- ##CytoScape.js:## Provides graph visualization features such as zooming, panning, selecting nodes, and exploring relationships between code elements.
+- ##Python:## Provides a strong ecosystem for processing source code, working with files, and integrating with databases.
+- ##FastAPI:## Allows the frontend to communicate with the backend through HTTP requests and provides automatically generated API documentation.
+- ##Tree-sitter:## Helps extract classes, functions, methods, variables, and other code elements instead of treating source code as plain text.
+- ##NEO4j:## Our project focuses on connections between code elements. Neo4j's graph database model makes it suitable for representing and querying relationships between files, classes, and functions.
 
 ## Architecture
 
