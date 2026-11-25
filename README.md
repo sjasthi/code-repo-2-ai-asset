@@ -36,13 +36,13 @@ Users can then search for specific code elements, investigate file dependencies,
 ## Technology Stack
 Our application uses a combination of frontend, backend, database, and code-analysis technologies. Each technology serves a specific purpose in processing source code, storing dependency information, and presenting the results to users.
 
-- ##React:## Allows us to create an interactive application with separate pages for uploads, search, dependencies, and graph visualization
-- ##TypeScript:## Helps organize application data and catch potential type-related errors, especially when handling API responses, files, and graph information.
-- ##CytoScape.js:## Provides graph visualization features such as zooming, panning, selecting nodes, and exploring relationships between code elements.
-- ##Python:## Provides a strong ecosystem for processing source code, working with files, and integrating with databases.
-- ##FastAPI:## Allows the frontend to communicate with the backend through HTTP requests and provides automatically generated API documentation.
-- ##Tree-sitter:## Helps extract classes, functions, methods, variables, and other code elements instead of treating source code as plain text.
-- ##NEO4j:## Our project focuses on connections between code elements. Neo4j's graph database model makes it suitable for representing and querying relationships between files, classes, and functions.
+- React: Allows us to create an interactive application with separate pages for uploads, search, dependencies, and graph visualization
+- TypeScript: Helps organize application data and catch potential type-related errors, especially when handling API responses, files, and graph information.
+- CytoScape.js: Provides graph visualization features such as zooming, panning, selecting nodes, and exploring relationships between code elements.
+- Python: Provides a strong ecosystem for processing source code, working with files, and integrating with databases.
+- FastAPI: Allows the frontend to communicate with the backend through HTTP requests and provides automatically generated API documentation.
+- Tree-sitter: Helps extract classes, functions, methods, variables, and other code elements instead of treating source code as plain text.
+- NEO4j: Our project focuses on connections between code elements. Neo4j's graph database model makes it suitable for representing and querying relationships between files, classes, and functions.
 
 ## Architecture
 
